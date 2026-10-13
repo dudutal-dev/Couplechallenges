@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.13.15';
+  const APP_VERSION = '2026.10.13.16';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -314,6 +314,11 @@
     $('#home-roles').innerHTML = `<div class="role dom">${S.avatars[S.dom] ? avatarHtml(S.dom, 'lg') : illus('key')}<small>${c.dg === 'm' ? 'מוביל' : 'מובילה'}</small><b>${c.D}</b></div>
       <div class="role sub">${S.avatars[sub()] ? avatarHtml(sub(), 'lg') : illus('collar')}<small>${c.sg === 'm' ? 'מובל' : 'מובלת'}</small><b>${c.S}</b></div>`;
     hydrateAvatars($('#home-roles'));
+    $('#home-mode').innerHTML = `<div class="seg" id="home-mode-seg"><button type="button" data-v="fixed">קבוע כל הערב</button><button type="button" data-v="alternate">מתחלף כל משימה</button><button type="button" data-v="random">הגרלה בכל ערב</button></div>
+      <p class="muted tiny center" id="home-mode-help"></p>`;
+    const help = { fixed: `${c.D} ${c.dg === 'm' ? 'מוביל' : 'מובילה'} את כל הערב. ״החלפת תפקידים״ מחליף ידנית.`, alternate: `משימה אחת ${c.D} ${c.dg === 'm' ? 'מוביל' : 'מובילה'}, הבאה ${c.S}, וחוזר חלילה. גם בקלף אקראי ובקוביות.`, random: 'בכל ערב חדש האפליקציה מגרילה מי מוביל.' };
+    $('#home-mode-help').textContent = help[S.roleMode] || help.fixed;
+    seg($('#home-mode-seg'), S.roleMode || 'fixed', (v) => { S.roleMode = v; save(); renderHome(); });
     const ses = S.session;
     $('#btn-resume').hidden = !(ses && ses.idx < ses.cards.length);
     if (ses) $('#btn-resume').textContent = `המשך ערב (${Math.min(ses.idx + 1, ses.cards.length)}/${ses.cards.length})`;
@@ -404,6 +409,7 @@
       }
       $('#play-progress').textContent = `${s.idx + 1} / ${s.cards.length}`;
     } else $('#play-progress').textContent = 'קלף אקראי';
+    $('#play-lead').innerHTML = `${illus('key')} <b>${roleName('D')}</b> ${S.partners[S.dom].g === 'm' ? 'מוביל' : 'מובילה'}${alternating() ? ` <small>· הבא: ${roleName('S')}</small>` : ''}`;
     if (!c) { S.session = null; save(); return show('home'); }
     host.innerHTML = cardHtml(c); hydrateCard(host);
     const fav = S.favorites.includes(c.id);
@@ -904,7 +910,7 @@ EXAMPLE corset:
     const lashes = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((i) => `<i class="${i <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
     const art = mediaArtHtml(c, 'tv-art') || `<div class="tv-art">${illus(c.img || cat.img)}</div>`;
     const prog = playMode === 'session' && S.session ? `${S.session.idx + 1} / ${S.session.cards.length}` : 'קלף אקראי';
-    return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">${prog}</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
+    return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">${prog}</span><span class="tv-lead">${illus('key')} ${roleName('D')} ${S.partners[S.dom].g === 'm' ? 'מוביל' : 'מובילה'}${alternating() ? ` · הבא: ${roleName('S')}` : ''}</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
       <div class="tv-main">${art}
         <div class="tv-text"><div class="tv-chips"><span class="chip to">${esc(to)}</span><span class="chip cat">${cat.name}</span>${lashes}</div>
           <p class="tv-p">${render(c.text)}</p>${c.safe && S.showSafety ? `<p class="tv-safe-note">⚠ ${esc(c.safe)}</p>` : ''}</div></div>

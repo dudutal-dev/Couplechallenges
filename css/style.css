@@ -337,3 +337,12 @@ body.tv-receiver #scr-tv::after{display:none}
 
 /* פס עדכון */
 .update-bar{position:fixed;left:12px;right:12px;bottom:calc(84px + var(--safe-b));z-index:40;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:14px;background:linear-gradient(165deg,#22101a,#0c0608);border:1px solid var(--gold-dim);box-shadow:0 10px 30px #000a;animation:fade .3s}
+
+/* מי מוביל עכשיו */
+.play-lead{display:flex;align-items:center;justify-content:center;gap:.4em;margin:-2px 0 10px;color:var(--muted);font-size:.95rem}
+.play-lead .il{width:1.2em;height:1.2em}
+.play-lead b{color:var(--gold2)}
+.play-lead small{color:var(--muted)}
+.tv-lead{display:inline-flex;align-items:center;gap:.5cqw;color:var(--gold2)}
+.tv-lead .il{width:2.2cqw;height:2.2cqw}
+#home-mode{margin:4px 0 8px}

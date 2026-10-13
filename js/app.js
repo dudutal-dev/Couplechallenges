@@ -172,7 +172,7 @@
     const body = $('#setup-body');
     if (setupStep === 0) {
       body.innerHTML = `
-        <div class="home-emblem"><svg class="il"><use href="#il-flame"/></svg></div>
+        <div class="home-emblem"><svg class="il"><use href="#il-ring"/></svg></div>
         <h1 class="brand center">קטיפה</h1>
         <p class="lead">משחק ערב לשניכם: משימות, קוביות, טיימר. חפיסה שמכבדת את הגבולות של שניכם, ומילת עצירה שעוצרת הכול.</p>
         <div class="consent">

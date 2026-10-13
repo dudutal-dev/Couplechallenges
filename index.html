@@ -5,13 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>קטיפה</title>
   <meta name="description" content="משחק ערב לזוג. פרטי, במכשיר בלבד.">
-  <meta name="theme-color" content="#140a10">
+  <meta name="theme-color" content="#090507">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="קטיפה">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@700;900&family=Heebo:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -41,7 +44,7 @@
     <h1 class="brand">קטיפה</h1>
     <p class="muted" id="home-sub"></p>
   </header>
-  <div class="home-emblem"><svg class="il"><use href="#il-flame"/></svg></div>
+  <div class="home-emblem"><svg class="il"><use href="#il-ring"/></svg></div>
   <div class="home-roles" id="home-roles"></div>
   <div class="stack">
     <button class="btn primary big" id="btn-resume" hidden>המשך ערב</button>
@@ -97,7 +100,7 @@
   <div class="menu">
     <button class="menu-item" data-go="random"><svg class="il"><use href="#il-dice"/></svg><span>קלף אקראי</span></button>
     <button class="menu-item" data-go="editor"><svg class="il"><use href="#il-marker"/></svg><span>החפיסה: עריכה, הוספה, מועדפים</span></button>
-    <button class="menu-item" data-go="limits"><svg class="il"><use href="#il-shoe"/></svg><span>גבולות ועוצמה</span></button>
+    <button class="menu-item" data-go="limits"><svg class="il"><use href="#il-chain"/></svg><span>גבולות ועוצמה</span></button>
     <button class="menu-item" data-go="partners"><svg class="il"><use href="#il-heart"/></svg><span>שמות, תפקידים ומילת עצירה</span></button>
     <button class="menu-item" data-go="tts"><svg class="il"><use href="#il-music"/></svg><span id="tts-label">הקראת כרטיסים</span></button>
     <button class="menu-item" id="btn-media-usage"><svg class="il"><use href="#il-camera"/></svg><span id="media-usage">תמונות וסרטונים שלכם</span></button>
@@ -221,7 +224,7 @@
 
 <!-- סרגל תחתון -->
 <nav class="tabbar" id="tabbar" hidden>
-  <button data-tab="home"><svg class="il"><use href="#il-flame"/></svg><span>ערב</span></button>
+  <button data-tab="home"><svg class="il"><use href="#il-ring"/></svg><span>ערב</span></button>
   <button data-tab="random"><svg class="il"><use href="#il-dice"/></svg><span>קלף</span></button>
   <button data-tab="dice"><svg class="il"><use href="#il-cuffs"/></svg><span>קוביות</span></button>
   <button data-tab="timer"><svg class="il"><use href="#il-stopwatch"/></svg><span>טיימר</span></button>

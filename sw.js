@@ -1,5 +1,5 @@
 // Service worker – עבודה ללא רשת אחרי הפתיחה הראשונה
-const CACHE = 'ktifa-v2';
+const CACHE = 'ktifa-v3';
 const ASSETS = [
   './', './index.html', './css/style.css',
   './js/app.js', './js/cards-data.js', './js/illustrations.js', './js/media.js',
@@ -17,7 +17,8 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((cached) => {
       const network = fetch(e.request).then((res) => {
-        if (res && res.ok && e.request.url.startsWith(self.location.origin)) {
+        const u = e.request.url;
+        if (res && (res.ok || res.type === 'opaque') && (u.startsWith(self.location.origin) || u.includes('fonts.googleapis.com') || u.includes('fonts.gstatic.com'))) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(e.request, copy));
         }

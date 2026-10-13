@@ -57,11 +57,8 @@
   // ---------- גבולות ----------
   function catStatus(catId) {
     if (catId === AFTERCARE_ID) return 'yes';
-    const adv = (catOf(catId) || {}).offByDefault;
-    const dflt = adv ? 'no' : 'maybe';
-    const a = S.limits.a[catId] || dflt, b = S.limits.b[catId] || dflt;
+    const a = S.limits.a[catId] || 'maybe', b = S.limits.b[catId] || 'maybe';
     if (a === 'no' || b === 'no') return 'no';
-    if (adv && (a !== 'yes' || b !== 'yes')) return 'no';
     if (a === 'yes' && b === 'yes') return 'yes';
     return 'maybe';
   }
@@ -261,7 +258,7 @@
   function summaryHtml() {
     return CATEGORIES.map((c, i) => {
       const s = catStatus(c.id), on = catAllowed(c.id);
-      const label = s === 'yes' ? 'במשחק' : s === 'no' ? (c.offByDefault ? 'מחוץ למשחק (מתקדם)' : 'מחוץ למשחק') : on ? 'במשחק (״אולי״)' : 'רק אם מסמנים ״אולי״';
+      const label = s === 'yes' ? 'במשחק' : s === 'no' ? 'מחוץ למשחק' : on ? 'במשחק (״אולי״)' : 'רק אם מסמנים ״אולי״';
       const head = c.offByDefault && !(CATEGORIES[i - 1] || {}).offByDefault ? '<div class="adv-divider">מתקדם</div>' : '';
       return `${head}<div class="allowed-row ${on ? 'on' : 'off'}">${illus(c.img)}<span>${c.name}</span><em>${label}</em></div>`;
     }).join('') + `<div class="allowed-row on">${illus('stopwatch')}<span>עוצמה מרבית</span><em>${maxLevel()} מתוך 3</em></div>`;
@@ -279,7 +276,7 @@
       const lim = S.limits[who];
       host.innerHTML = `<h1>${esc(name)}: הגבולות שלי</h1>
         <div class="limits">${CATEGORIES.map((c, i) => `
-          ${c.offByDefault && !(CATEGORIES[i - 1] || {}).offByDefault ? '<h2 class="adv-head">מתקדם: כבוי כברירת מחדל</h2><p class="muted tiny">נכנס למשחק רק אם שניכם מסמנים ״כן״. ״אולי״ לא מספיק כאן.</p>' : ''}
+          ${c.offByDefault && !(CATEGORIES[i - 1] || {}).offByDefault ? '<h2 class="adv-head">מתקדם</h2>' : ''}
           <div class="limit-row ${c.offByDefault ? 'adv' : ''}" data-cat="${c.id}">
             <div class="limit-head">${illus(c.img)}<div><b>${c.name}</b><small>${c.desc}</small>${c.safe ? `<small class="safe-note">${c.safe}</small>` : ''}</div></div>
             <div class="seg tri"><button type="button" data-v="yes">כן</button><button type="button" data-v="maybe">אולי</button><button type="button" data-v="no">לא</button></div>
@@ -287,9 +284,9 @@
         <h2>עד איזו עוצמה</h2>
         <div class="seg" id="lm-max"><button type="button" data-v="1">1 חימום</button><button type="button" data-v="2">2 בינוני</button><button type="button" data-v="3">3 הכול</button></div>
         <button class="btn primary big" id="lm-done">סיימתי, ${p.g === 'm' ? 'מסתיר' : 'מסתירה'} את התשובות</button>`;
-      $$('.limit-row', host).forEach((row) => seg($('.seg', row), lim[row.dataset.cat] || ((catOf(row.dataset.cat) || {}).offByDefault ? 'no' : 'maybe'), (v) => { lim[row.dataset.cat] = v; save(); }));
+      $$('.limit-row', host).forEach((row) => seg($('.seg', row), lim[row.dataset.cat] || 'maybe', (v) => { lim[row.dataset.cat] = v; save(); }));
       seg($('#lm-max', host), String(S.maxLevel[who] || 3), (v) => { S.maxLevel[who] = +v; save(); });
-      $('#lm-done', host).addEventListener('click', () => { CATEGORIES.forEach((c) => { if (!lim[c.id]) lim[c.id] = c.offByDefault ? 'no' : 'maybe'; }); save(); onDone(); });
+      $('#lm-done', host).addEventListener('click', () => { CATEGORIES.forEach((c) => { if (!lim[c.id]) lim[c.id] = 'maybe'; }); save(); onDone(); });
     });
   }
   function renderLimitsScreen() {

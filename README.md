@@ -27,7 +27,7 @@
 
 ## פרסום (GitHub Pages)
 האפליקציה מתפרסמת אוטומטית בכל דחיפה ל-`main` דרך `.github/workflows/pages.yml`:
-**https://dudutal-dev.github.io/Couplechallenges-/**
+**https://dudutal-dev.github.io/Couplechallenges/**
 
 הרפו ציבורי, ולכן גם הקוד וגם הכתובת פתוחים לכל מי שמגיע אליהם. הנתונים שלכם (שמות, גבולות, תמונות, סרטונים, מפתח ElevenLabs) לא נמצאים ברפו ולא באתר, רק בטלפון שלכם.
 

@@ -17,6 +17,7 @@
     media: {}, avatars: { a: false, b: false },
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
     ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
+    showSafety: false,
     customIllus: {},
   });
   let S = load();
@@ -371,7 +372,7 @@
       <header><span class="chip to">${av}${esc(to)}</span><span class="chip cat">${cat.name}</span>${dots}</header>
       ${art}
       <p class="text">${render(c.text)}</p>
-      ${c.safe ? `<p class="safe">⚠ ${esc(c.safe)}</p>` : ''}
+      ${c.safe && S.showSafety ? `<p class="safe">⚠ ${esc(c.safe)}</p>` : ''}
       ${c.min ? `<button class="btn timer-btn" data-min="${c.min}">${illus('stopwatch')} ${c.min} דקות</button>` : ''}
       <div class="card-timer" hidden><span class="t"></span><button class="btn small ghost stop-t">עצירת טיימר</button></div>
     </article>`;
@@ -517,7 +518,7 @@
 
   // ---------- עוד ----------
   function renderMore() {
-    $('#opt-awake').checked = S.keepAwake; $('#opt-maybe').checked = S.includeMaybe;
+    $('#opt-awake').checked = S.keepAwake; $('#opt-maybe').checked = S.includeMaybe; $('#opt-safety').checked = !!S.showSafety;
     $('#pin-label').textContent = S.pinHash ? 'קוד נעילה: פעיל' : 'קוד נעילה: כבוי';
     $('#tts-label').textContent = 'הקראת כרטיסים: ' + (S.tts.mode === 'off' ? 'כבויה' : S.tts.mode === 'browser' ? 'קול הדפדפן' : 'ElevenLabs');
     Media.usage().then((u) => { $('#media-usage').textContent = `תמונות וסרטונים שלכם: ${u.count} קבצים, ${Media.fmtBytes(u.bytes)}`; });
@@ -527,6 +528,7 @@
     { label: 'סגירה' }]));
   $('#opt-awake').addEventListener('change', (e) => { S.keepAwake = e.target.checked; save(); });
   $('#opt-maybe').addEventListener('change', (e) => { S.includeMaybe = e.target.checked; save(); });
+  $('#opt-safety').addEventListener('change', (e) => { S.showSafety = e.target.checked; save(); });
 
   // ---------- עורך חפיסה ----------
   let edFilter = 'all';
@@ -844,7 +846,7 @@ EXAMPLE corset:
     return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">${prog}</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
       <div class="tv-main">${art}
         <div class="tv-text"><div class="tv-chips"><span class="chip to">${esc(to)}</span><span class="chip cat">${cat.name}</span>${lashes}</div>
-          <p class="tv-p">${render(c.text)}</p>${c.safe ? `<p class="tv-safe-note">⚠ ${esc(c.safe)}</p>` : ''}</div></div>
+          <p class="tv-p">${render(c.text)}</p>${c.safe && S.showSafety ? `<p class="tv-safe-note">⚠ ${esc(c.safe)}</p>` : ''}</div></div>
       <div class="tv-bar">
         <button class="tv-btn stop" data-tv="stop">עצור</button>
         <button class="tv-btn primary" data-tv="next">${playMode === 'session' ? 'בוצע, הבא' : 'קלף אחר'}</button>

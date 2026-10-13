@@ -1,5 +1,5 @@
 // Service worker – עבודה ללא רשת אחרי הפתיחה הראשונה
-const CACHE = 'ktifa-v6';
+const CACHE = 'ktifa-v7';
 const ASSETS = [
   './', './index.html', './css/style.css',
   './js/app.js', './js/cards-data.js', './js/illustrations.js', './js/media.js',

@@ -26,16 +26,10 @@
 3. מומלץ להפעיל קוד נעילה ב"עוד".
 
 ## פרסום (GitHub Pages)
-הענף הזה עצמאי (orphan). כדי להעביר אותו לרפו משלו:
-```bash
-git clone --branch claude/ktifa-app --single-branch https://github.com/dudutal-dev/Butbul ktifa
-cd ktifa
-git branch -m main
-git remote set-url origin https://github.com/<user>/<new-private-repo>.git
-git push -u origin main
-```
-ואז ברפו החדש: Settings ← Pages ← Source: **GitHub Actions**. ה-workflow יפרסם בכל דחיפה ל-`main`.
-הכתובת תהיה `https://<user>.github.io/<repo>/`. ברפו פרטי GitHub Pages דורש חשבון Pro; לחלופין אפשר להעלות את התיקייה ל-Netlify Drop או Cloudflare Pages.
+האפליקציה מתפרסמת אוטומטית בכל דחיפה ל-`main` דרך `.github/workflows/pages.yml`:
+**https://dudutal-dev.github.io/Couplechallenges-/**
+
+הרפו ציבורי, ולכן גם הקוד וגם הכתובת פתוחים לכל מי שמגיע אליהם. הנתונים שלכם (שמות, גבולות, תמונות, סרטונים, מפתח ElevenLabs) לא נמצאים ברפו ולא באתר, רק בטלפון שלכם.
 
 ## הרצה מקומית
 ```bash

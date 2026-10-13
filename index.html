@@ -99,7 +99,7 @@
   <header class="top"><h1>עוד</h1></header>
   <div class="menu">
     <button class="menu-item" data-go="random"><svg class="il"><use href="#il-dice"/></svg><span>קלף אקראי</span></button>
-    <button class="menu-item" data-go="editor"><svg class="il"><use href="#il-marker"/></svg><span>החפיסה: עריכה, הוספה, מועדפים</span></button>
+    <button class="menu-item" data-go="editor"><svg class="il"><use href="#il-marker"/></svg><span>כל המשימות לפי קטגוריות: תמונות, סרטונים, הוספה</span></button>
     <button class="menu-item" data-go="limits"><svg class="il"><use href="#il-chain"/></svg><span>גבולות ועוצמה</span></button>
     <button class="menu-item" data-go="partners"><svg class="il"><use href="#il-heart"/></svg><span>שמות, תפקידים ומילת עצירה</span></button>
     <button class="menu-item" data-go="tv"><svg class="il"><use href="#il-camera"/></svg><span>קאסט לטלוויזיה (מצב 16:9)</span></button>
@@ -120,7 +120,7 @@
 <section class="screen" id="scr-editor" hidden>
   <header class="top row">
     <button class="btn back" data-go="more">‹ עוד</button>
-    <h1>החפיסה</h1>
+    <h1>המשימות</h1>
     <button class="btn primary small" id="editor-add">+ חדש</button>
   </header>
   <div class="filters" id="editor-filters"></div>
@@ -144,10 +144,8 @@
     </label>
     <label>משך בדקות (לא חובה)<input type="number" id="cf-min" min="0" max="120" inputmode="numeric"></label>
     <label>איור<div class="imgpick" id="cf-img"></div></label>
-    <div class="row gap">
-      <button type="button" class="btn ghost" id="cf-ai">✨ איור ב-AI</button>
-      <button type="button" class="btn ghost" id="cf-media">🖼 תמונה או סרטון</button>
-    </div>
+    <button type="button" class="btn ghost" id="cf-ai">✨ איור ב-AI</button>
+    <p class="muted tiny">תמונה וסרטון לכרטיס מצרפים אחרי השמירה, מרשימת המשימות.</p>
     <label>הטקסט
       <textarea id="cf-text" rows="6" placeholder="{d:קשור|קשרי} את {S} ו..."></textarea>
     </label>

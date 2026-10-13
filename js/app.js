@@ -373,7 +373,7 @@
     const dots = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((i) => `<i class="${i <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
     const who = c.to === 'B' ? null : (c.to === 'D' ? S.dom : sub());
     const av = who && S.avatars[who] ? avatarHtml(who, 'sm') : '';
-    const art = S.media[c.id] ? `<div class="art media" data-media="${c.id}"></div>` : `<div class="art">${illus(c.img || cat.img)}</div>`;
+    const art = mediaArtHtml(c, 'art') || `<div class="art">${illus(c.img || cat.img)}</div>`;
     return `<article class="card cat-${c.cat} ${big ? 'big' : ''}">
       <header><span class="chip to">${av}${esc(to)}</span><span class="chip cat">${cat.name}</span>${dots}</header>
       ${art}
@@ -401,7 +401,7 @@
     if (!c) { S.session = null; save(); return show('home'); }
     host.innerHTML = cardHtml(c); hydrateCard(host);
     const fav = S.favorites.includes(c.id);
-    const tools = `<div class="row gap tools"><button class="btn ghost small" id="pa-media">${S.media[c.id] ? '🖼 החלפת תמונה/סרטון' : '🖼 תמונה או סרטון שלכם'}</button>${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}<button class="btn ghost small" id="pa-tv">📺 טלוויזיה</button></div>`;
+    const tools = `<div class="row gap tools">${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}<button class="btn ghost small" id="pa-tv">📺 טלוויזיה</button></div>`;
     acts.innerHTML = playMode === 'session'
       ? `<button class="btn primary big" id="pa-done">בוצע, הבא</button>
          <div class="row gap">
@@ -414,7 +414,6 @@
            <button class="btn ghost ${fav ? 'on' : ''}" id="pa-fav">${fav ? '★ מועדף' : '☆ מועדף'}</button>
            <button class="btn ghost" id="pa-hide">לא שוב</button>
          </div>${tools}`;
-    $('#pa-media').addEventListener('click', () => mediaDialog(c.id, renderPlay));
     $('#pa-tv').addEventListener('click', enterTv);
     $('#pa-speak') && $('#pa-speak').addEventListener('click', () => speak(plainText(c)));
     const next = () => { S.session.idx++; save(); renderPlay(); };
@@ -538,35 +537,47 @@
 
   // ---------- עורך חפיסה ----------
   let edFilter = 'all';
+  const edOpen = {};
   function renderEditor() {
     const f = $('#editor-filters');
-    f.innerHTML = [['all', 'הכול'], ['fav', '★ מועדפים'], ['hidden', 'מוסתרים'], ['custom', 'שלנו']].concat(CATEGORIES.map((c) => [c.id, c.name])).map(([k, l]) => `<button class="chip ${edFilter === k ? 'on' : ''}" data-f="${k}">${l}</button>`).join('');
+    f.innerHTML = [['all', 'הכול'], ['media', '🖼 עם מדיה'], ['fav', '★ מועדפים'], ['hidden', 'מוסתרים'], ['custom', 'שלנו']].map(([k, l]) => `<button class="chip ${edFilter === k ? 'on' : ''}" data-f="${k}">${l}</button>`).join('');
     $$('button', f).forEach((b) => b.addEventListener('click', () => { edFilter = b.dataset.f; renderEditor(); }));
     let list = allCards();
     if (edFilter === 'fav') list = list.filter((c) => S.favorites.includes(c.id));
     else if (edFilter === 'hidden') list = list.filter((c) => S.hidden.includes(c.id));
     else if (edFilter === 'custom') list = list.filter((c) => c.id.startsWith('u_'));
-    else if (edFilter !== 'all') list = list.filter((c) => c.cat === edFilter);
-    $('#editor-list').innerHTML = list.map((c) => {
-      const cat = c.cat === AFTERCARE_ID ? { name: 'אחרי', img: 'blanket' } : catOf(c.cat);
-      const hid = S.hidden.includes(c.id), fav = S.favorites.includes(c.id);
+    else if (edFilter === 'media') list = list.filter((c) => hasMedia(c.id));
+    const groups = CATEGORIES.concat([{ id: AFTERCARE_ID, name: 'אחרי', img: 'blanket' }]).map((cat) => ({ cat, cards: list.filter((c) => c.cat === cat.id) })).filter((g) => g.cards.length);
+    const row = (c, cat) => {
+      const hid = S.hidden.includes(c.id), fav = S.favorites.includes(c.id), m = S.media[c.id] || {};
       return `<div class="ed-row ${hid ? 'hid' : ''}" data-id="${c.id}">
         <div class="ed-art">${illus(c.img || cat.img)}</div>
-        <div class="ed-main"><small>${cat.name} · עוצמה ${c.lvl || 'אחרי'} · ${c.to === 'B' ? 'שניכם' : c.to === 'D' ? 'מוביל/ה' : 'מובל/ת'}</small><p>${render(c.text)}</p></div>
+        <div class="ed-main"><small>עוצמה ${c.lvl || 'אחרי'} · ${c.to === 'B' ? 'שניכם' : c.to === 'D' ? 'מוביל/ה' : 'מובל/ת'}${c.id.startsWith('u_') ? ' · שלנו' : ''}</small><p>${render(c.text)}</p>
+          <div class="ed-media">
+            <button class="mslot ${m.img ? 'on' : ''}" data-act="img">🖼 ${m.img ? 'תמונה ✓' : 'תמונה'}</button>
+            <button class="mslot ${m.vid ? 'on' : ''}" data-act="vid">🎬 ${m.vid ? 'סרטון ✓' : 'סרטון'}</button>
+          </div></div>
         <div class="ed-btns">
           <button class="icon ${fav ? 'on' : ''}" data-act="fav" title="מועדף">${fav ? '★' : '☆'}</button>
           <button class="icon" data-act="hide" title="${hid ? 'החזרה' : 'הסתרה'}">${hid ? '↩' : '🚫'}</button>
-          <button class="icon ${S.media[c.id] ? 'on' : ''}" data-act="media" title="תמונה או סרטון">🖼</button>
           ${c.id.startsWith('u_') ? `<button class="icon" data-act="edit" title="עריכה">✎</button><button class="icon" data-act="del" title="מחיקה">🗑</button>` : ''}
         </div></div>`;
+    };
+    $('#editor-list').innerHTML = groups.map(({ cat, cards }) => {
+      const nMedia = cards.filter((c) => hasMedia(c.id)).length, open = edOpen[cat.id] !== false && (edFilter !== 'all' || edOpen[cat.id] === true);
+      return `<section class="ed-group ${open ? 'open' : ''}" data-cat="${cat.id}">
+        <button class="ed-head" data-toggle="${cat.id}">${illus(cat.img)}<span class="ed-name">${cat.name}</span><small>${cards.length} משימות${nMedia ? ` · ${nMedia} עם מדיה` : ''}</small><i class="chev"></i></button>
+        <div class="ed-body" ${open ? '' : 'hidden'}>${cards.map((c) => row(c, cat)).join('')}</div>
+      </section>`;
     }).join('') || '<p class="muted center">אין כרטיסים בסינון הזה.</p>';
-    $$('.ed-row', $('#editor-list')).forEach((row) => $$('button', row).forEach((b) => b.addEventListener('click', () => {
-      const id = row.dataset.id, act = b.dataset.act;
+    $$('[data-toggle]', $('#editor-list')).forEach((b) => b.addEventListener('click', () => { const id = b.dataset.toggle; edOpen[id] = !(edOpen[id] === true || (edFilter !== 'all' && edOpen[id] !== false)); renderEditor(); }));
+    $$('.ed-row', $('#editor-list')).forEach((r) => $$('button', r).forEach((b) => b.addEventListener('click', () => {
+      const id = r.dataset.id, act = b.dataset.act;
       if (act === 'fav') toggleIn(S.favorites, id);
       if (act === 'hide') toggleIn(S.hidden, id);
       if (act === 'edit') return openCardForm(cardById(id));
-      if (act === 'media') return mediaDialog(id, renderEditor);
-      if (act === 'del') return dialog('<h2>למחוק את הכרטיס?</h2>', [{ label: 'מחיקה', cls: 'danger', onClick: () => { S.custom = S.custom.filter((c) => c.id !== id); save(); renderEditor(); } }, { label: 'ביטול' }]);
+      if (act === 'img' || act === 'vid') return mediaSlotDialog(id, act, renderEditor);
+      if (act === 'del') return dialog('<h2>למחוק את הכרטיס?</h2>', [{ label: 'מחיקה', cls: 'danger', onClick: () => { S.custom = S.custom.filter((c) => c.id !== id); ['img', 'vid'].forEach((k) => Media.removeFile(mediaKey(id, k))); delete S.media[id]; save(); renderEditor(); } }, { label: 'ביטול' }]);
       save(); renderEditor();
     })));
   }
@@ -590,7 +601,6 @@
     $('#cf-ai').onclick = () => aiIllustrationDialog(cf, (id) => { cf.img = id; renderPick(); preview(); });
     $('#cf-text').value = cf.text; $('#cf-text').oninput = (e) => { cf.text = e.target.value; preview(); };
     const preview = () => { $('#cf-preview').innerHTML = cf.text.trim() ? cardHtml(cf, false) : '<p class="muted center">הטקסט יופיע כאן כפי שייראה במשחק.</p>'; hydrateCard($('#cf-preview')); };
-    $('#cf-media').onclick = () => mediaDialog(cf.id, preview);
     preview(); show('cardform');
   }
   $('#cardform-save').addEventListener('click', () => {
@@ -611,6 +621,15 @@
   function choose(title, opts) {
     return new Promise((res) => dialog(`<h2>${esc(title)}</h2>`, opts.map(([v, l]) => ({ label: l, cls: v === 'remove' ? 'danger' : 'ghost', onClick: () => res(v) })).concat([{ label: 'ביטול', onClick: () => res(null) }])));
   }
+  // מדיה לכל כרטיס: חריץ תמונה (img) וחריץ סרטון (vid). שניהם מוצגים אם שניהם קיימים.
+  const mediaKey = (cardId, slot) => `${cardId}:${slot}`;
+  const hasMedia = (cardId) => { const m = S.media[cardId]; return !!(m && (m.img || m.vid)); };
+  function mediaArtHtml(c, cls = 'art') {
+    const m = S.media[c.id] || {};
+    const slots = ['img', 'vid'].filter((k) => m[k]);
+    if (!slots.length) return null;
+    return `<div class="${cls} media ${slots.length === 2 ? 'both' : ''}">${slots.map((k) => `<div class="m-${k}" data-media="${mediaKey(c.id, k)}"></div>`).join('')}</div>`;
+  }
   let liveUrls = [];
   function freeUrls() { liveUrls.forEach((u) => URL.revokeObjectURL(u)); liveUrls = []; }
   function avatarHtml(k, size) { return `<span class="avatar ${size}" data-avatar="${k}">${illus(k === S.dom ? 'key' : 'collar')}</span>`; }
@@ -627,29 +646,46 @@
       const rec = await Media.getFile(el.dataset.media);
       if (!rec || !rec.blob) { el.innerHTML = illus('camera'); continue; }
       const u = URL.createObjectURL(rec.blob); liveUrls.push(u);
-      if (rec.kind === 'video') el.innerHTML = `<video src="${u}" playsinline controls loop preload="metadata"></video>`;
+      if (rec.kind === 'video') el.innerHTML = `<video src="${u}" playsinline controls loop muted autoplay preload="metadata"></video>`;
       else { el.innerHTML = `<img src="${u}" alt="">`; $('img', el).addEventListener('click', () => { $('#lightbox img').src = u; $('#lightbox').hidden = false; }); }
     }
   }
   $('#lightbox').addEventListener('click', () => { $('#lightbox').hidden = true; });
-  async function mediaDialog(cardId, onChange) {
-    const cur = S.media[cardId];
-    const rec = cur ? await Media.getFile(cardId) : null;
+  async function mediaSlotDialog(cardId, slot, onChange) {
+    const key = mediaKey(cardId, slot), isVid = slot === 'vid';
+    const cur = (S.media[cardId] || {})[slot];
+    const rec = cur ? await Media.getFile(key) : null;
     let prev = '';
-    if (rec && rec.blob) { const u = URL.createObjectURL(rec.blob); liveUrls.push(u); prev = rec.kind === 'video' ? `<video class="dlg-media" src="${u}" playsinline controls muted></video>` : `<img class="dlg-media" src="${u}" alt="">`; }
-    const doPick = async (accept) => {
-      const f = await pickFile(accept); if (!f) return;
+    if (rec && rec.blob) { const u = URL.createObjectURL(rec.blob); liveUrls.push(u); prev = isVid ? `<video class="dlg-media" src="${u}" playsinline controls muted></video>` : `<img class="dlg-media" src="${u}" alt="">`; }
+    const doPick = async () => {
+      const f = await pickFile(isVid ? 'video/*' : 'image/*'); if (!f) return;
       if (f.size > 200e6) { dialog('<h2>קובץ גדול מדי</h2><p>עד 200MB לסרטון. קצרו אותו או בחרו אחר.</p>', [{ label: 'סגירה' }]); return; }
       dialog('<h2>שומר...</h2><p class="muted">תמונות מוקטנות אוטומטית. סרטונים נשמרים כמו שהם.</p>', []);
-      try { const info = await Media.saveFile(cardId, f); S.media[cardId] = info; save(); $('#dlg').hidden = true; onChange && onChange(); }
-      catch (e) { dialog('<h2>לא נשמר</h2><p>אולי אין מספיק מקום במכשיר. נסו קובץ קטן יותר.</p>', [{ label: 'סגירה' }]); }
+      try {
+        const info = await Media.saveFile(key, f);
+        S.media[cardId] = Object.assign({}, S.media[cardId] || {}, { [slot]: { size: info.size } }); save();
+        $('#dlg').hidden = true; onChange && onChange();
+      } catch (e) { dialog('<h2>לא נשמר</h2><p>אולי אין מספיק מקום במכשיר. נסו קובץ קטן יותר.</p>', [{ label: 'סגירה' }]); }
     };
-    dialog(`<h2>תמונה או סרטון לכרטיס</h2>${prev}<p class="muted tiny">מחליף את האיור. נשמר רק במכשיר הזה. סרטונים: עדיף עד דקה, בפורמט שהטלפון מצלם.</p>`, [
-      { label: '📷 בחירת תמונה', cls: 'primary', onClick: () => { doPick('image/*'); return true; } },
-      { label: '🎬 בחירת סרטון', cls: 'primary', onClick: () => { doPick('video/*'); return true; } },
-      ...(cur ? [{ label: 'הסרה, חזרה לאיור', cls: 'danger', onClick: () => { Media.removeFile(cardId).then(() => { delete S.media[cardId]; save(); onChange && onChange(); }); } }] : []),
+    const card = cardById(cardId);
+    dialog(`<h2>${isVid ? '🎬 סרטון' : '🖼 תמונה'} לכרטיס</h2><p class="muted tiny">${card ? plainText(card).slice(0, 90) : ''}…</p>${prev}
+      <p class="muted tiny">${isVid ? 'עדיף עד דקה, בפורמט שהטלפון מצלם. מתנגן אוטומטית בלי קול, אפשר להדליק.' : 'מוקטנת אוטומטית ל-1600 פיקסל.'} אם יש גם תמונה וגם סרטון, שניהם יופיעו בכרטיס. נשמר רק במכשיר הזה.</p>`, [
+      { label: cur ? (isVid ? 'החלפת הסרטון' : 'החלפת התמונה') : (isVid ? 'בחירת סרטון' : 'בחירת תמונה'), cls: 'primary', onClick: () => { doPick(); return true; } },
+      ...(cur ? [{ label: 'הסרה', cls: 'danger', onClick: () => { Media.removeFile(key).then(() => { const m = S.media[cardId] || {}; delete m[slot]; if (!m.img && !m.vid) delete S.media[cardId]; else S.media[cardId] = m; save(); onChange && onChange(); }); } }] : []),
       { label: 'סגירה' },
     ]);
+  }
+  // העברה מהפורמט הישן (קובץ אחד לכרטיס) לחריצים
+  async function migrateMedia() {
+    for (const [id, m] of Object.entries(S.media)) {
+      if (!m || !m.kind) continue;
+      const rec = await Media.getFile(id);
+      const slot = m.kind === 'video' ? 'vid' : 'img';
+      if (rec && rec.blob) { try { await Media.saveFile(mediaKey(id, slot), new File([rec.blob], 'm', { type: rec.type || rec.blob.type })); } catch { /* */ } }
+      await Media.removeFile(id);
+      S.media[id] = { [slot]: { size: m.size || 0 } };
+    }
+    save();
   }
 
   // ---------- הקראה (קול הדפדפן או ElevenLabs) ----------
@@ -847,7 +883,7 @@ EXAMPLE corset:
     const cat = c.cat === AFTERCARE_ID ? { name: 'אחרי', img: 'blanket' } : catOf(c.cat);
     const to = c.to === 'B' ? 'לשניכם' : 'ל' + roleName(c.to);
     const lashes = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((i) => `<i class="${i <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
-    const art = S.media[c.id] && S.media[c.id].kind === 'image' ? `<div class="tv-art media" data-media="${c.id}"></div>` : `<div class="tv-art">${illus(c.img || cat.img)}</div>`;
+    const art = mediaArtHtml(c, 'tv-art') || `<div class="tv-art">${illus(c.img || cat.img)}</div>`;
     const prog = playMode === 'session' && S.session ? `${S.session.idx + 1} / ${S.session.cards.length}` : 'קלף אקראי';
     return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">${prog}</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
       <div class="tv-main">${art}
@@ -960,6 +996,7 @@ EXAMPLE corset:
     $('#sprite').innerHTML = illustrationSprite();
     Object.entries(S.customIllus || {}).forEach(([id, body]) => addCustomIllustration(id, body));
     buildPad();
+    if (Object.values(S.media).some((m) => m && m.kind)) await migrateMedia();
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
     if (isReceiver) return tvReceiverInit();
     if (S.pinHash) await unlockFlow();

@@ -320,7 +320,7 @@ body.tv-receiver #scr-tv::after{display:none}
 .ed-head .chev{width:9px;height:9px;border-inline-start:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:rotate(-45deg);transition:transform .2s;margin-inline-end:4px}
 .ed-group.open .ed-head .chev{transform:rotate(45deg)}
 .ed-body{padding:0 8px 8px;display:flex;flex-direction:column;gap:8px}
-.ed-media{display:flex;gap:6px;margin-top:8px}
+.ed-media{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .mslot{padding:5px 10px;border-radius:999px;border:1px solid var(--line2);background:#000a;color:var(--muted);font-size:.8rem}
 .mslot.on{border-color:var(--gold);color:var(--gold2);background:#2a1208}
 /* תמונה וסרטון יחד בכרטיס */

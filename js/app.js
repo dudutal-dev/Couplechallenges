@@ -535,6 +535,7 @@
   // ---------- עורך חפיסה ----------
   let edFilter = 'all';
   const edOpen = {};
+  const leadLabel = (who) => { const p = S.partners[who]; return `${p.name || (who === 'a' ? 'א׳' : 'ב׳')} ${p.g === 'm' ? 'מוביל' : 'מובילה'}`; };
   function renderEditor() {
     const f = $('#editor-filters');
     f.innerHTML = [['all', 'הכול'], ['media', '🖼 עם מדיה'], ['fav', '★ מועדפים'], ['hidden', 'מוסתרים'], ['custom', 'שלנו']].map(([k, l]) => `<button class="chip ${edFilter === k ? 'on' : ''}" data-f="${k}">${l}</button>`).join('');
@@ -552,7 +553,8 @@
         <div class="ed-main"><small>עוצמה ${c.lvl || 'אחרי'} · ${c.to === 'B' ? 'שניכם' : c.to === 'D' ? 'מוביל/ה' : 'מובל/ת'}${c.id.startsWith('u_') ? ' · שלנו' : ''}</small><p>${render(c.text)}</p>
           <div class="ed-media">
             <button class="mslot ${m.img ? 'on' : ''}" data-act="img">🖼 ${m.img ? 'תמונה ✓' : 'תמונה'}</button>
-            <button class="mslot ${m.vid ? 'on' : ''}" data-act="vid">🎬 ${m.vid ? 'סרטון ✓' : 'סרטון'}</button>
+            <button class="mslot ${m.vidA ? 'on' : ''}" data-act="vidA">🎬 ${leadLabel('a')}${m.vidA ? ' ✓' : ''}</button>
+            <button class="mslot ${m.vidB ? 'on' : ''}" data-act="vidB">🎬 ${leadLabel('b')}${m.vidB ? ' ✓' : ''}</button>
           </div></div>
         <div class="ed-btns">
           <button class="icon ${fav ? 'on' : ''}" data-act="fav" title="מועדף">${fav ? '★' : '☆'}</button>
@@ -573,8 +575,8 @@
       if (act === 'fav') toggleIn(S.favorites, id);
       if (act === 'hide') toggleIn(S.hidden, id);
       if (act === 'edit') return openCardForm(cardById(id));
-      if (act === 'img' || act === 'vid') return mediaSlotDialog(id, act, renderEditor);
-      if (act === 'del') return dialog('<h2>למחוק את הכרטיס?</h2>', [{ label: 'מחיקה', cls: 'danger', onClick: () => { S.custom = S.custom.filter((c) => c.id !== id); ['img', 'vid'].forEach((k) => Media.removeFile(mediaKey(id, k))); delete S.media[id]; save(); renderEditor(); } }, { label: 'ביטול' }]);
+      if (act === 'img' || act === 'vidA' || act === 'vidB') return mediaSlotDialog(id, act, renderEditor);
+      if (act === 'del') return dialog('<h2>למחוק את הכרטיס?</h2>', [{ label: 'מחיקה', cls: 'danger', onClick: () => { S.custom = S.custom.filter((c) => c.id !== id); ['img', 'vidA', 'vidB'].forEach((k) => Media.removeFile(mediaKey(id, k))); delete S.media[id]; save(); renderEditor(); } }, { label: 'ביטול' }]);
       save(); renderEditor();
     })));
   }
@@ -620,10 +622,15 @@
   }
   // מדיה לכל כרטיס: חריץ תמונה (img) וחריץ סרטון (vid). שניהם מוצגים אם שניהם קיימים.
   const mediaKey = (cardId, slot) => `${cardId}:${slot}`;
-  const hasMedia = (cardId) => { const m = S.media[cardId]; return !!(m && (m.img || m.vid)); };
+  // חריצי סרטון לפי מי מוביל: vidA כשבן/בת זוג א׳ מוביל/ה, vidB כשב׳. מציגים את המתאים, ואם אין, את השני.
+  const VID_SLOTS = ['vidA', 'vidB'];
+  const hasMedia = (cardId) => { const m = S.media[cardId]; return !!(m && (m.img || m.vidA || m.vidB)); };
+  const vidSlotFor = (who) => (who === 'a' ? 'vidA' : 'vidB');
+  function activeVidSlot(m) { const pref = vidSlotFor(S.dom), other = pref === 'vidA' ? 'vidB' : 'vidA'; return m[pref] ? pref : (m[other] ? other : null); }
   function mediaArtHtml(c, cls = 'art') {
     const m = S.media[c.id] || {};
-    const slots = ['img', 'vid'].filter((k) => m[k]);
+    const v = activeVidSlot(m);
+    const slots = ['img'].filter((k) => m[k]).concat(v ? [v] : []);
     if (!slots.length) return null;
     return `<div class="${cls} media ${slots.length === 2 ? 'both' : ''}">${slots.map((k) => `<div class="m-${k}" data-media="${mediaKey(c.id, k)}"></div>`).join('')}</div>`;
   }
@@ -649,7 +656,8 @@
   }
   $('#lightbox').addEventListener('click', () => { $('#lightbox').hidden = true; });
   async function mediaSlotDialog(cardId, slot, onChange) {
-    const key = mediaKey(cardId, slot), isVid = slot === 'vid';
+    const key = mediaKey(cardId, slot), isVid = slot !== 'img';
+    const who = slot === 'vidA' ? 'a' : 'b', leadName = isVid ? `${S.partners[who].name || (who === 'a' ? 'א׳' : 'ב׳')} ${S.partners[who].g === 'm' ? 'מוביל' : 'מובילה'}` : '';
     const cur = (S.media[cardId] || {})[slot];
     const rec = cur ? await Media.getFile(key) : null;
     let prev = '';
@@ -665,19 +673,24 @@
       } catch (e) { dialog('<h2>לא נשמר</h2><p>אולי אין מספיק מקום במכשיר. נסו קובץ קטן יותר.</p>', [{ label: 'סגירה' }]); }
     };
     const card = cardById(cardId);
-    dialog(`<h2>${isVid ? '🎬 סרטון' : '🖼 תמונה'} לכרטיס</h2><p class="muted tiny">${card ? plainText(card).slice(0, 90) : ''}…</p>${prev}
-      <p class="muted tiny">${isVid ? 'עדיף עד דקה, בפורמט שהטלפון מצלם. מתנגן אוטומטית בלי קול, אפשר להדליק.' : 'מוקטנת אוטומטית ל-1600 פיקסל.'} אם יש גם תמונה וגם סרטון, שניהם יופיעו בכרטיס. נשמר רק במכשיר הזה.</p>`, [
+    dialog(`<h2>${isVid ? '🎬 סרטון כש' + esc(leadName) : '🖼 תמונה'} לכרטיס</h2><p class="muted tiny">${card ? plainText(card).slice(0, 90) : ''}…</p>${prev}
+      <p class="muted tiny">${isVid ? 'עדיף עד דקה, בפורמט שהטלפון מצלם. מתנגן אוטומטית בלי קול, אפשר להדליק.' : 'מוקטנת אוטומטית ל-1600 פיקסל.'} ${isVid ? ' מוצג כשזה מי שמוביל/ה; אם אין סרטון לצד השני, מוצג הזה.' : ''} אם יש גם תמונה וגם סרטון, שניהם יופיעו בכרטיס. נשמר רק במכשיר הזה.</p>`, [
       { label: cur ? (isVid ? 'החלפת הסרטון' : 'החלפת התמונה') : (isVid ? 'בחירת סרטון' : 'בחירת תמונה'), cls: 'primary', onClick: () => { doPick(); return true; } },
-      ...(cur ? [{ label: 'הסרה', cls: 'danger', onClick: () => { Media.removeFile(key).then(() => { const m = S.media[cardId] || {}; delete m[slot]; if (!m.img && !m.vid) delete S.media[cardId]; else S.media[cardId] = m; save(); onChange && onChange(); }); } }] : []),
+      ...(cur ? [{ label: 'הסרה', cls: 'danger', onClick: () => { Media.removeFile(key).then(() => { const m = S.media[cardId] || {}; delete m[slot]; if (!m.img && !m.vidA && !m.vidB) delete S.media[cardId]; else S.media[cardId] = m; save(); onChange && onChange(); }); } }] : []),
       { label: 'סגירה' },
     ]);
   }
   // העברה מהפורמט הישן (קובץ אחד לכרטיס) לחריצים
   async function migrateMedia() {
     for (const [id, m] of Object.entries(S.media)) {
+      if (m && m.vid) { // חריץ סרטון יחיד מגרסה קודמת -> לפי מי מוביל עכשיו
+        const to = vidSlotFor(S.dom), rec = await Media.getFile(mediaKey(id, 'vid'));
+        if (rec && rec.blob) { try { await Media.saveFile(mediaKey(id, to), new File([rec.blob], 'm', { type: rec.type || rec.blob.type })); } catch { /* */ } }
+        await Media.removeFile(mediaKey(id, 'vid')); m[to] = m.vid; delete m.vid; continue;
+      }
       if (!m || !m.kind) continue;
       const rec = await Media.getFile(id);
-      const slot = m.kind === 'video' ? 'vid' : 'img';
+      const slot = m.kind === 'video' ? vidSlotFor(S.dom) : 'img';
       if (rec && rec.blob) { try { await Media.saveFile(mediaKey(id, slot), new File([rec.blob], 'm', { type: rec.type || rec.blob.type })); } catch { /* */ } }
       await Media.removeFile(id);
       S.media[id] = { [slot]: { size: m.size || 0 } };
@@ -993,7 +1006,7 @@ EXAMPLE corset:
     $('#sprite').innerHTML = illustrationSprite();
     Object.entries(S.customIllus || {}).forEach(([id, body]) => addCustomIllustration(id, body));
     buildPad();
-    if (Object.values(S.media).some((m) => m && m.kind)) await migrateMedia();
+    if (Object.values(S.media).some((m) => m && (m.kind || m.vid))) await migrateMedia();
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
     if (isReceiver) return tvReceiverInit();
     if (S.pinHash) await unlockFlow();

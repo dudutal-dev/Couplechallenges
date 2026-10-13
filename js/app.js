@@ -36,13 +36,19 @@
   };
   const ctx = () => ({ D: roleName('D'), S: roleName('S'), dg: S.partners[S.dom].g, sg: S.partners[sub()].g });
   function render(text, c = ctx()) {
-    return esc(text).replace(/\{(D|S|[ds]):?([^{}]*)\}/g, (m, k, rest) => {
-      if (k === 'D') return `<b>${c.D}</b>`;
-      if (k === 'S') return `<b>${c.S}</b>`;
-      const [m1, f1 = ''] = rest.split('|');
-      const g = k === 'd' ? c.dg : c.sg;
-      return g === 'm' ? m1 : f1;
-    });
+    // פותר מהפנימי לחיצוני, כך שאפשר לקנן: {d:גמור {s:לו|לה} בפה|תני ל{S} לגמור}
+    let out = esc(text), prev;
+    do {
+      prev = out;
+      out = out.replace(/\{(D|S|[ds]):?([^{}]*)\}/g, (m, k, rest) => {
+        if (k === 'D') return `<b>${c.D}</b>`;
+        if (k === 'S') return `<b>${c.S}</b>`;
+        const [m1, f1 = ''] = rest.split('|');
+        const g = k === 'd' ? c.dg : c.sg;
+        return g === 'm' ? m1 : f1;
+      });
+    } while (out !== prev);
+    return out;
   }
   const catOf = (id) => CATEGORIES.find((c) => c.id === id);
   const allCards = () => CARDS.concat(S.custom);

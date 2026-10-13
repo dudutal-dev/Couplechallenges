@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.13.13';
+  const APP_VERSION = '2026.10.13.14';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -212,9 +212,10 @@
             <input id="pb-name" placeholder="שם" value="${esc(p.b.name)}">
             <div class="seg" id="pb-g"><button type="button" data-v="m">זכר</button><button type="button" data-v="f">נקבה</button></div>
           </fieldset>
-          <fieldset><legend>מי מוביל הערב</legend>
+          <fieldset><legend>מי מוביל</legend>
             <div class="seg" id="su-dom"><button type="button" data-v="a">א׳</button><button type="button" data-v="b">ב׳</button></div>
-            <label class="check"><input type="checkbox" id="su-rand" ${draft.roleMode === 'random' ? 'checked' : ''}> להגריל מחדש בכל ערב</label>
+            <div class="seg" id="su-mode"><button type="button" data-v="fixed">קבוע כל הערב</button><button type="button" data-v="alternate">מתחלף כל משימה</button><button type="button" data-v="random">הגרלה בכל ערב</button></div>
+            <p class="muted tiny" id="su-mode-help"></p>
           </fieldset>
           <fieldset><legend>מילת העצירה</legend>
             <input id="su-safe" value="${esc(draft.safeword)}" placeholder="אדום">
@@ -223,6 +224,9 @@
         </div>
         <button class="btn primary big" id="su-next">${setupOnlyPartners ? 'שמירה' : 'הלאה: הגבולות של כל אחד'}</button>`;
       seg($('#pa-g'), p.a.g, (v) => { p.a.g = v; }); seg($('#pb-g'), p.b.g, (v) => { p.b.g = v; }); seg($('#su-dom'), draft.dom, (v) => { draft.dom = v; });
+      const modeHelp = { fixed: 'מי שנבחר מוביל את כל הערב. אפשר להחליף ידנית בדף הבית.', alternate: 'משימה אחת מוביל/ה א׳, הבאה ב׳, וחוזר חלילה. מי שנבחר למעלה מתחיל. הערב עדיין מתחמם לאט מעוצמה 1 ל-3.', random: 'בכל ערב חדש האפליקציה מגרילה מי מוביל.' };
+      const setHelp = (v) => { $('#su-mode-help').textContent = modeHelp[v]; };
+      seg($('#su-mode'), draft.roleMode || 'fixed', (v) => { draft.roleMode = v; setHelp(v); }); setHelp(draft.roleMode || 'fixed');
       hydrateAvatars(body);
       $$('[data-av]', body).forEach((b) => b.addEventListener('click', async () => {
         const k = b.dataset.av;
@@ -232,7 +236,7 @@
       }));
       $('#su-next').addEventListener('click', () => {
         p.a.name = $('#pa-name').value.trim(); p.b.name = $('#pb-name').value.trim();
-        draft.safeword = $('#su-safe').value.trim() || 'אדום'; draft.roleMode = $('#su-rand').checked ? 'random' : 'fixed';
+        draft.safeword = $('#su-safe').value.trim() || 'אדום';
         Object.assign(S, draft); save();
         if (setupOnlyPartners) return show('more');
         setupStep = 2; limitsFor = 'a'; renderSetup();
@@ -305,7 +309,8 @@
   // ---------- בית ----------
   function renderHome() {
     const c = ctx();
-    $('#home-sub').textContent = `מילת העצירה: ${S.safeword}`;
+    const modeTxt = { fixed: '', alternate: ' · מתחלף כל משימה', random: ' · הגרלה בכל ערב' }[S.roleMode] || '';
+    $('#home-sub').textContent = `מילת העצירה: ${S.safeword}${modeTxt}`;
     $('#home-roles').innerHTML = `<div class="role dom">${S.avatars[S.dom] ? avatarHtml(S.dom, 'lg') : illus('key')}<small>${c.dg === 'm' ? 'מוביל' : 'מובילה'}</small><b>${c.D}</b></div>
       <div class="role sub">${S.avatars[sub()] ? avatarHtml(sub(), 'lg') : illus('collar')}<small>${c.sg === 'm' ? 'מובל' : 'מובלת'}</small><b>${c.S}</b></div>`;
     hydrateAvatars($('#home-roles'));
@@ -334,7 +339,7 @@
     // השלמה אם חסר ברמות מסוימות
     const target = Math.min(11, p.length);
     for (const c of p) { if (seq.length >= target) break; if (!used.has(c.id)) { seq.push(c); used.add(c.id); } }
-    seq.sort((x, y) => x.lvl - y.lvl);
+    seq.sort((x, y) => x.lvl - y.lvl); // מתחמם לאט: 1 → 2 → 3
     // מועדפים קודם בתוך כל רמה? לא – אקראי. אבל מבטיחים שלפחות מועדף אחד נכנס אם קיים.
     const fav = p.find((c) => S.favorites.includes(c.id) && !used.has(c.id));
     if (fav && seq.length) { const i = seq.findIndex((c) => c.lvl === fav.lvl); if (i >= 0) seq[i] = fav; }
@@ -350,10 +355,13 @@
     const p = pool();
     if (!p.length) { dialog('<h2>אין משימות</h2><p>שניכם צריכים לסמן לפחות קטגוריה אחת ״כן״, או להפעיל ״לכלול אולי״.</p>', [{ label: 'לגבולות', cls: 'primary', onClick: () => show('limits') }, { label: 'סגירה' }]); return null; }
     let c; do { c = p[Math.floor(Math.random() * p.length)]; } while (p.length > 1 && randomCard && c.id === randomCard.id);
-    randomCard = c; return c;
+    if (alternating() && randomCard) flipRoles();
+    randomCard = c; save(); return c;
   }
   function startRandom() { if (pickRandom()) startPlay('random'); }
-  function sessionAdvance() { const s = S.session; if (!s) return; s.idx++; save(); }
+  const alternating = () => S.roleMode === 'alternate';
+  function flipRoles() { S.dom = sub(); }
+  function sessionAdvance() { const s = S.session; if (!s) return; s.idx++; if (alternating() && s.idx < s.cards.length) flipRoles(); save(); }
   function sessionSkip(c) {
     const s = S.session; if (!s) return;
     const alt = shuffle(pool()).find((x) => x.lvl === c.lvl && !s.cards.includes(x.id));
@@ -414,7 +422,7 @@
          </div>${tools}`;
     $('#pa-tv').addEventListener('click', enterTv);
     $('#pa-speak') && $('#pa-speak').addEventListener('click', () => speak(plainText(c)));
-    const next = () => { S.session.idx++; save(); renderPlay(); };
+    const next = () => { sessionAdvance(); renderPlay(); };
     $('#pa-done') && $('#pa-done').addEventListener('click', next);
     $('#pa-skip') && $('#pa-skip').addEventListener('click', () => {
       // מחליפים בכרטיס אחר מאותה רמה שלא בערב, אם יש
@@ -476,7 +484,7 @@
     const sets = diceSets(); const pick = (a) => a[Math.floor(Math.random() * a.length)];
     let n = 0; const iv = setInterval(() => {
       diceResult = { action: pick(sets.action), body: pick(sets.body), time: pick(sets.time) }; renderDice(true);
-      if (++n >= 8) { clearInterval(iv); rolling = false; renderDice(false); navigator.vibrate && navigator.vibrate(30); }
+      if (++n >= 8) { clearInterval(iv); rolling = false; if (alternating()) { flipRoles(); save(); } renderDice(false); navigator.vibrate && navigator.vibrate(30); }
     }, 90);
   });
   $('#dice-timer').addEventListener('click', () => { if (diceResult && diceResult.time.sec) { timerSet(diceResult.time.sec); show('timer'); timerStart(); } });
@@ -953,7 +961,7 @@ EXAMPLE corset:
     if (a === 'timer') { timerSet(b.dataset.sec ? +b.dataset.sec : +b.dataset.min * 60); timerStart(); return; }
     if (a === 'dice') { tvView = 'dice'; return renderTv(); }
     if (a === 'card') { if (!S.session && !randomCard) { playMode = 'random'; pickRandom(); } tvView = 'card'; return renderTv(); }
-    if (a === 'roll') { if (rolling) return; rolling = true; const sets = diceSets(), pick = (x) => x[Math.floor(Math.random() * x.length)]; let n = 0; const iv = setInterval(() => { diceResult = { action: pick(sets.action), body: pick(sets.body), time: pick(sets.time) }; if (++n >= 8) { clearInterval(iv); rolling = false; } renderTv(); }, 90); return; }
+    if (a === 'roll') { if (rolling) return; rolling = true; const sets = diceSets(), pick = (x) => x[Math.floor(Math.random() * x.length)]; let n = 0; const iv = setInterval(() => { diceResult = { action: pick(sets.action), body: pick(sets.body), time: pick(sets.time) }; if (++n >= 8) { clearInterval(iv); rolling = false; if (alternating()) { flipRoles(); save(); } } renderTv(); }, 90); return; }
     if (a === 'start') { if (S.roleMode === 'random') S.dom = Math.random() < 0.5 ? 'a' : 'b'; buildSession(); playMode = 'session'; tvView = 'card'; return renderTv(); }
     if (a === 'random') { playMode = 'random'; pickRandom(); tvView = 'card'; return renderTv(); }
     if (a === 'finish') { S.session = null; save(); return renderTv(); }

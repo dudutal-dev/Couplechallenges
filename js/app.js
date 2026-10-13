@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.13.14';
+  const APP_VERSION = '2026.10.13.15';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1023,10 +1023,17 @@ EXAMPLE corset:
   }
   $('#btn-refresh').addEventListener('click', hardRefresh);
   $('#update-bar button').addEventListener('click', hardRefresh);
+  async function checkServerVersion() {
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+      const v = (await r.json()).version;
+      if (v && v !== APP_VERSION) { $('#update-bar').hidden = false; $('#update-bar span').textContent = `גרסה חדשה (${v}) זמינה`; $('#app-version').textContent = `גרסה ${APP_VERSION} · זמינה ${v}`; }
+    } catch { /* אין רשת */ }
+  }
   function watchUpdates(reg) {
     const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('#update-bar').hidden = false; });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { reg.update().catch(() => {}); checkServerVersion(); } });
     setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
   }
 
@@ -1039,6 +1046,7 @@ EXAMPLE corset:
     $('#app-version').textContent = 'גרסה ' + APP_VERSION;
     if (location.search.includes('r=')) history.replaceState(null, '', location.pathname);
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').then(watchUpdates).catch(() => {});
+    if (location.protocol.startsWith('http')) setTimeout(checkServerVersion, 1500);
     if (isReceiver) return tvReceiverInit();
     if (S.pinHash) await unlockFlow();
     if (!S.setupDone) startSetup(0); else show('home');

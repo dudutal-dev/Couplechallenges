@@ -1,8 +1,8 @@
 // Service worker – עבודה ללא רשת אחרי הפתיחה הראשונה
-const CACHE = 'ktifa-v1';
+const CACHE = 'ktifa-v2';
 const ASSETS = [
   './', './index.html', './css/style.css',
-  './js/app.js', './js/cards-data.js', './js/illustrations.js',
+  './js/app.js', './js/cards-data.js', './js/illustrations.js', './js/media.js',
   './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'
 ];

@@ -14,6 +14,8 @@
     limits: { a: {}, b: {} }, maxLevel: { a: 3, b: 3 }, includeMaybe: false,
     pinHash: null, keepAwake: true,
     favorites: [], hidden: [], custom: [], session: null,
+    media: {}, avatars: { a: false, b: false },
+    tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
   });
   let S = load();
   function load() { try { const j = JSON.parse(localStorage.getItem(KEY)); return j ? Object.assign(DEFAULT(), j) : DEFAULT(); } catch { return DEFAULT(); } }
@@ -59,7 +61,7 @@
   }
 
   // ---------- ניווט ----------
-  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety'];
+  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts'];
   const TABS = { home: 'home', random: 'play', dice: 'dice', timer: 'timer', more: 'more' };
   let current = 'home';
   function show(name) {
@@ -74,6 +76,7 @@
     if (name === 'editor') renderEditor();
     if (name === 'limits') renderLimitsScreen();
     if (name === 'dice') renderDice(false);
+    if (name === 'tts') renderTts();
   }
   $$('#tabbar button').forEach((b) => b.addEventListener('click', () => {
     const t = b.dataset.tab;
@@ -151,7 +154,7 @@
   // ---------- מחיקה ----------
   function confirmWipe() {
     dialog('<h2>למחוק הכול?</h2><p>שמות, גבולות, כרטיסים שהוספתם, מועדפים וקוד הנעילה יימחקו מהמכשיר. אין דרך חזרה.</p>', [
-      { label: 'כן, מחק הכול', cls: 'danger', onClick: () => { localStorage.removeItem(KEY); S = DEFAULT(); location.reload(); } },
+      { label: 'כן, מחק הכול', cls: 'danger', onClick: () => { localStorage.removeItem(KEY); S = DEFAULT(); Media.clearAll().finally(() => location.reload()); } },
       { label: 'ביטול' },
     ]);
   }
@@ -188,10 +191,12 @@
         <h1>מי אתם</h1>
         <div class="form">
           <fieldset><legend>בן/בת זוג א׳</legend>
+            <div class="avatar-pick">${avatarHtml('a', 'lg')}<button type="button" class="btn ghost small" data-av="a">תמונת פרופיל</button></div>
             <input id="pa-name" placeholder="שם" value="${esc(p.a.name)}">
             <div class="seg" id="pa-g"><button type="button" data-v="m">זכר</button><button type="button" data-v="f">נקבה</button></div>
           </fieldset>
           <fieldset><legend>בן/בת זוג ב׳</legend>
+            <div class="avatar-pick">${avatarHtml('b', 'lg')}<button type="button" class="btn ghost small" data-av="b">תמונת פרופיל</button></div>
             <input id="pb-name" placeholder="שם" value="${esc(p.b.name)}">
             <div class="seg" id="pb-g"><button type="button" data-v="m">זכר</button><button type="button" data-v="f">נקבה</button></div>
           </fieldset>
@@ -206,6 +211,13 @@
         </div>
         <button class="btn primary big" id="su-next">${setupOnlyPartners ? 'שמירה' : 'הלאה: הגבולות של כל אחד'}</button>`;
       seg($('#pa-g'), p.a.g, (v) => { p.a.g = v; }); seg($('#pb-g'), p.b.g, (v) => { p.b.g = v; }); seg($('#su-dom'), draft.dom, (v) => { draft.dom = v; });
+      hydrateAvatars(body);
+      $$('[data-av]', body).forEach((b) => b.addEventListener('click', async () => {
+        const k = b.dataset.av;
+        if (S.avatars[k]) { const act = await choose('תמונת פרופיל', [['change', 'החלפה'], ['remove', 'הסרה']]); if (act === 'remove') { await Media.removeFile('avatar_' + k); S.avatars[k] = false; save(); hydrateAvatars(body); return; } if (act !== 'change') return; }
+        const f = await pickFile('image/*'); if (!f) return;
+        await Media.saveAvatar('avatar_' + k, f); S.avatars[k] = true; save(); hydrateAvatars(body);
+      }));
       $('#su-next').addEventListener('click', () => {
         p.a.name = $('#pa-name').value.trim(); p.b.name = $('#pb-name').value.trim();
         draft.safeword = $('#su-safe').value.trim() || 'אדום'; draft.roleMode = $('#su-rand').checked ? 'random' : 'fixed';
@@ -280,8 +292,9 @@
   function renderHome() {
     const c = ctx();
     $('#home-sub').textContent = `מילת העצירה: ${S.safeword}`;
-    $('#home-roles').innerHTML = `<div class="role dom">${illus('key')}<small>${c.dg === 'm' ? 'מוביל' : 'מובילה'}</small><b>${c.D}</b></div>
-      <div class="role sub">${illus('collar')}<small>${c.sg === 'm' ? 'מובל' : 'מובלת'}</small><b>${c.S}</b></div>`;
+    $('#home-roles').innerHTML = `<div class="role dom">${S.avatars[S.dom] ? avatarHtml(S.dom, 'lg') : illus('key')}<small>${c.dg === 'm' ? 'מוביל' : 'מובילה'}</small><b>${c.D}</b></div>
+      <div class="role sub">${S.avatars[sub()] ? avatarHtml(sub(), 'lg') : illus('collar')}<small>${c.sg === 'm' ? 'מובל' : 'מובלת'}</small><b>${c.S}</b></div>`;
+    hydrateAvatars($('#home-roles'));
     const ses = S.session;
     $('#btn-resume').hidden = !(ses && ses.idx < ses.cards.length);
     if (ses) $('#btn-resume').textContent = `המשך ערב (${Math.min(ses.idx + 1, ses.cards.length)}/${ses.cards.length})`;
@@ -334,9 +347,12 @@
     const cat = c.cat === AFTERCARE_ID ? { name: 'אחרי', img: 'blanket' } : catOf(c.cat);
     const to = c.to === 'B' ? 'לשניכם' : 'ל' + roleName(c.to);
     const dots = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((i) => `<i class="${i <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
+    const who = c.to === 'B' ? null : (c.to === 'D' ? S.dom : sub());
+    const av = who && S.avatars[who] ? avatarHtml(who, 'sm') : '';
+    const art = S.media[c.id] ? `<div class="art media" data-media="${c.id}"></div>` : `<div class="art">${illus(c.img || cat.img)}</div>`;
     return `<article class="card cat-${c.cat} ${big ? 'big' : ''}">
-      <header><span class="chip to">${esc(to)}</span><span class="chip cat">${cat.name}</span>${dots}</header>
-      <div class="art">${illus(c.img || cat.img)}</div>
+      <header><span class="chip to">${av}${esc(to)}</span><span class="chip cat">${cat.name}</span>${dots}</header>
+      ${art}
       <p class="text">${render(c.text)}</p>
       ${c.safe ? `<p class="safe">⚠ ${esc(c.safe)}</p>` : ''}
       ${c.min ? `<button class="btn timer-btn" data-min="${c.min}">${illus('stopwatch')} ${c.min} דקות</button>` : ''}
@@ -359,20 +375,23 @@
       $('#play-progress').textContent = `${s.idx + 1} / ${s.cards.length}`;
     } else $('#play-progress').textContent = 'קלף אקראי';
     if (!c) { S.session = null; save(); return show('home'); }
-    host.innerHTML = cardHtml(c);
+    host.innerHTML = cardHtml(c); hydrateCard(host);
     const fav = S.favorites.includes(c.id);
+    const tools = `<div class="row gap tools"><button class="btn ghost small" id="pa-media">${S.media[c.id] ? '🖼 החלפת תמונה/סרטון' : '🖼 תמונה או סרטון שלכם'}</button>${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}</div>`;
     acts.innerHTML = playMode === 'session'
       ? `<button class="btn primary big" id="pa-done">בוצע, הבא</button>
          <div class="row gap">
            <button class="btn ghost" id="pa-skip">דילוג</button>
            <button class="btn ghost ${fav ? 'on' : ''}" id="pa-fav">${fav ? '★ מועדף' : '☆ מועדף'}</button>
            <button class="btn ghost" id="pa-hide">לא שוב</button>
-         </div>`
+         </div>${tools}`
       : `<button class="btn primary big" id="pa-another">קלף אחר</button>
          <div class="row gap">
            <button class="btn ghost ${fav ? 'on' : ''}" id="pa-fav">${fav ? '★ מועדף' : '☆ מועדף'}</button>
            <button class="btn ghost" id="pa-hide">לא שוב</button>
-         </div>`;
+         </div>${tools}`;
+    $('#pa-media').addEventListener('click', () => mediaDialog(c.id, renderPlay));
+    $('#pa-speak') && $('#pa-speak').addEventListener('click', () => speak(plainText(c)));
     const next = () => { S.session.idx++; save(); renderPlay(); };
     $('#pa-done') && $('#pa-done').addEventListener('click', next);
     $('#pa-skip') && $('#pa-skip').addEventListener('click', () => {
@@ -482,7 +501,12 @@
   function renderMore() {
     $('#opt-awake').checked = S.keepAwake; $('#opt-maybe').checked = S.includeMaybe;
     $('#pin-label').textContent = S.pinHash ? 'קוד נעילה: פעיל' : 'קוד נעילה: כבוי';
+    $('#tts-label').textContent = 'הקראת כרטיסים: ' + (S.tts.mode === 'off' ? 'כבויה' : S.tts.mode === 'browser' ? 'קול הדפדפן' : 'ElevenLabs');
+    Media.usage().then((u) => { $('#media-usage').textContent = `תמונות וסרטונים שלכם: ${u.count} קבצים, ${Media.fmtBytes(u.bytes)}`; });
   }
+  $('#btn-media-usage').addEventListener('click', () => dialog('<h2>תמונות וסרטונים</h2><p>הקבצים נשמרים רק במכשיר הזה (IndexedDB). מחיקת האפליקציה או ניקוי נתוני האתר מוחקים אותם. אין גיבוי.</p>', [
+    { label: 'מחיקת כל התמונות והסרטונים', cls: 'danger', onClick: () => { Media.clearAll().then(() => { S.media = {}; S.avatars = { a: false, b: false }; save(); renderMore(); }); } },
+    { label: 'סגירה' }]));
   $('#opt-awake').addEventListener('change', (e) => { S.keepAwake = e.target.checked; save(); });
   $('#opt-maybe').addEventListener('change', (e) => { S.includeMaybe = e.target.checked; save(); });
 
@@ -506,6 +530,7 @@
         <div class="ed-btns">
           <button class="icon ${fav ? 'on' : ''}" data-act="fav" title="מועדף">${fav ? '★' : '☆'}</button>
           <button class="icon" data-act="hide" title="${hid ? 'החזרה' : 'הסתרה'}">${hid ? '↩' : '🚫'}</button>
+          <button class="icon ${S.media[c.id] ? 'on' : ''}" data-act="media" title="תמונה או סרטון">🖼</button>
           ${c.id.startsWith('u_') ? `<button class="icon" data-act="edit" title="עריכה">✎</button><button class="icon" data-act="del" title="מחיקה">🗑</button>` : ''}
         </div></div>`;
     }).join('') || '<p class="muted center">אין כרטיסים בסינון הזה.</p>';
@@ -514,6 +539,7 @@
       if (act === 'fav') toggleIn(S.favorites, id);
       if (act === 'hide') toggleIn(S.hidden, id);
       if (act === 'edit') return openCardForm(cardById(id));
+      if (act === 'media') return mediaDialog(id, renderEditor);
       if (act === 'del') return dialog('<h2>למחוק את הכרטיס?</h2>', [{ label: 'מחיקה', cls: 'danger', onClick: () => { S.custom = S.custom.filter((c) => c.id !== id); save(); renderEditor(); } }, { label: 'ביטול' }]);
       save(); renderEditor();
     })));
@@ -531,7 +557,8 @@
     const ip = $('#cf-img'); ip.innerHTML = Object.keys(ILLUSTRATIONS).map((k) => `<button type="button" class="${k === cf.img ? 'on' : ''}" data-v="${k}">${illus(k)}</button>`).join('');
     $$('button', ip).forEach((b) => b.addEventListener('click', () => { cf.img = b.dataset.v; $$('button', ip).forEach((x) => x.classList.toggle('on', x === b)); preview(); }));
     $('#cf-text').value = cf.text; $('#cf-text').oninput = (e) => { cf.text = e.target.value; preview(); };
-    const preview = () => { $('#cf-preview').innerHTML = cf.text.trim() ? cardHtml(cf, false) : '<p class="muted center">הטקסט יופיע כאן כפי שייראה במשחק.</p>'; };
+    const preview = () => { $('#cf-preview').innerHTML = cf.text.trim() ? cardHtml(cf, false) : '<p class="muted center">הטקסט יופיע כאן כפי שייראה במשחק.</p>'; hydrateCard($('#cf-preview')); };
+    $('#cf-media').onclick = () => mediaDialog(cf.id, preview);
     preview(); show('cardform');
   }
   $('#cardform-save').addEventListener('click', () => {
@@ -540,6 +567,116 @@
     if (i >= 0) S.custom[i] = cf; else S.custom.push(cf);
     save(); show('editor');
   });
+
+  // ---------- קבצים, תמונות וסרטונים ----------
+  function pickFile(accept) {
+    return new Promise((res) => {
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = accept; inp.style.display = 'none';
+      inp.addEventListener('change', () => { res(inp.files[0] || null); inp.remove(); });
+      document.body.appendChild(inp); inp.click();
+    });
+  }
+  function choose(title, opts) {
+    return new Promise((res) => dialog(`<h2>${esc(title)}</h2>`, opts.map(([v, l]) => ({ label: l, cls: v === 'remove' ? 'danger' : 'ghost', onClick: () => res(v) })).concat([{ label: 'ביטול', onClick: () => res(null) }])));
+  }
+  let liveUrls = [];
+  function freeUrls() { liveUrls.forEach((u) => URL.revokeObjectURL(u)); liveUrls = []; }
+  function avatarHtml(k, size) { return `<span class="avatar ${size}" data-avatar="${k}">${illus(k === S.dom ? 'key' : 'collar')}</span>`; }
+  async function hydrateAvatars(root) {
+    for (const el of $$('[data-avatar]', root)) {
+      const k = el.dataset.avatar, rec = S.avatars[k] ? await Media.getFile('avatar_' + k) : null;
+      if (rec && rec.blob) { const u = URL.createObjectURL(rec.blob); liveUrls.push(u); el.style.backgroundImage = `url(${u})`; el.classList.add('has'); }
+      else { el.style.backgroundImage = ''; el.classList.remove('has'); }
+    }
+  }
+  async function hydrateCard(root) {
+    hydrateAvatars(root);
+    for (const el of $$('[data-media]', root)) {
+      const rec = await Media.getFile(el.dataset.media);
+      if (!rec || !rec.blob) { el.innerHTML = illus('camera'); continue; }
+      const u = URL.createObjectURL(rec.blob); liveUrls.push(u);
+      if (rec.kind === 'video') el.innerHTML = `<video src="${u}" playsinline controls loop preload="metadata"></video>`;
+      else { el.innerHTML = `<img src="${u}" alt="">`; $('img', el).addEventListener('click', () => { $('#lightbox img').src = u; $('#lightbox').hidden = false; }); }
+    }
+  }
+  $('#lightbox').addEventListener('click', () => { $('#lightbox').hidden = true; });
+  async function mediaDialog(cardId, onChange) {
+    const cur = S.media[cardId];
+    const rec = cur ? await Media.getFile(cardId) : null;
+    let prev = '';
+    if (rec && rec.blob) { const u = URL.createObjectURL(rec.blob); liveUrls.push(u); prev = rec.kind === 'video' ? `<video class="dlg-media" src="${u}" playsinline controls muted></video>` : `<img class="dlg-media" src="${u}" alt="">`; }
+    const doPick = async (accept) => {
+      const f = await pickFile(accept); if (!f) return;
+      if (f.size > 200e6) { dialog('<h2>קובץ גדול מדי</h2><p>עד 200MB לסרטון. קצרו אותו או בחרו אחר.</p>', [{ label: 'סגירה' }]); return; }
+      dialog('<h2>שומר...</h2><p class="muted">תמונות מוקטנות אוטומטית. סרטונים נשמרים כמו שהם.</p>', []);
+      try { const info = await Media.saveFile(cardId, f); S.media[cardId] = info; save(); $('#dlg').hidden = true; onChange && onChange(); }
+      catch (e) { dialog('<h2>לא נשמר</h2><p>אולי אין מספיק מקום במכשיר. נסו קובץ קטן יותר.</p>', [{ label: 'סגירה' }]); }
+    };
+    dialog(`<h2>תמונה או סרטון לכרטיס</h2>${prev}<p class="muted tiny">מחליף את האיור. נשמר רק במכשיר הזה. סרטונים: עדיף עד דקה, בפורמט שהטלפון מצלם.</p>`, [
+      { label: '📷 בחירת תמונה', cls: 'primary', onClick: () => { doPick('image/*'); return true; } },
+      { label: '🎬 בחירת סרטון', cls: 'primary', onClick: () => { doPick('video/*'); return true; } },
+      ...(cur ? [{ label: 'הסרה, חזרה לאיור', cls: 'danger', onClick: () => { Media.removeFile(cardId).then(() => { delete S.media[cardId]; save(); onChange && onChange(); }); } }] : []),
+      { label: 'סגירה' },
+    ]);
+  }
+
+  // ---------- הקראה (קול הדפדפן או ElevenLabs) ----------
+  function plainText(c) { const d = document.createElement('div'); d.innerHTML = render(c.text); return d.textContent; }
+  let audioEl = null;
+  function stopSpeech() { if (window.speechSynthesis) speechSynthesis.cancel(); if (audioEl) { audioEl.pause(); audioEl = null; } }
+  function speakBrowser(text) {
+    if (!window.speechSynthesis) { dialog('<h2>אין הקראה</h2><p>הדפדפן הזה לא תומך בהקראה.</p>', [{ label: 'סגירה' }]); return; }
+    const u = new SpeechSynthesisUtterance(text); u.lang = 'he-IL'; u.rate = 0.92;
+    const v = speechSynthesis.getVoices().find((x) => /he/i.test(x.lang)); if (v) u.voice = v;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }
+  async function speakEleven(text) {
+    const { key, voiceId, model } = S.tts;
+    if (!key || !voiceId) { dialog('<h2>חסר מפתח או קול</h2><p>הגדירו מפתח API ומזהה קול במסך ההקראה.</p>', [{ label: 'להגדרות', cls: 'primary', onClick: () => show('tts') }, { label: 'סגירה' }]); return; }
+    const ck = await sha(model + '|' + voiceId + '|' + text);
+    let blob = await Media.getAudio(ck);
+    if (!blob) {
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`, {
+        method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+        body: JSON.stringify({ text, model_id: model, language_code: model === 'eleven_v3' ? undefined : 'he' }),
+      });
+      if (!r.ok) { let msg = ''; try { msg = (await r.json()).detail?.message || ''; } catch { /* */ } throw new Error(`ElevenLabs ${r.status}${msg ? ': ' + msg : ''}`); }
+      blob = await r.blob(); await Media.putAudio(ck, blob);
+    }
+    stopSpeech(); const u = URL.createObjectURL(blob); liveUrls.push(u); audioEl = new Audio(u); audioEl.play();
+  }
+  async function speak(text) {
+    stopSpeech();
+    if (S.tts.mode === 'browser') return speakBrowser(text);
+    if (S.tts.mode === 'eleven') { try { await speakEleven(text); } catch (e) { dialog(`<h2>ElevenLabs לא ענה</h2><p class="tiny">${esc(e.message)}</p><p>בודקים: מפתח תקין, מזהה קול נכון, יתרת תווים, חיבור לרשת.</p>`, [{ label: 'הקראה בקול הדפדפן', cls: 'primary', onClick: () => speakBrowser(text) }, { label: 'סגירה' }]); } }
+  }
+  function renderTts() {
+    const t = S.tts;
+    $('#tts-body').innerHTML = `
+      <p class="muted">הקראה של הכרטיס בלחיצה על 🔊. קול הדפדפן עובד אופליין וחינם. ElevenLabs נותן קול הרבה יותר טוב, דורש רשת ומפתח API משלכם, והקלטות נשמרות במכשיר כדי לא לשלם פעמיים על אותו כרטיס.</p>
+      <div class="seg" id="tts-mode"><button type="button" data-v="off">כבוי</button><button type="button" data-v="browser">קול הדפדפן</button><button type="button" data-v="eleven">ElevenLabs</button></div>
+      <div class="form" id="tts-eleven" ${t.mode === 'eleven' ? '' : 'hidden'}>
+        <label>מפתח API (xi-api-key)<input id="tts-key" type="password" value="${esc(t.key)}" placeholder="sk_..." autocomplete="off" dir="ltr"></label>
+        <label>מזהה קול (Voice ID)<input id="tts-voice" value="${esc(t.voiceId)}" placeholder="למשל 21m00Tcm4TlvDq8ikWAM" dir="ltr"></label>
+        <label>מודל<select id="tts-model" dir="ltr">
+          <option value="eleven_v3" ${t.model === 'eleven_v3' ? 'selected' : ''}>eleven_v3 (תומך עברית, מומלץ)</option>
+          <option value="eleven_multilingual_v2" ${t.model === 'eleven_multilingual_v2' ? 'selected' : ''}>eleven_multilingual_v2</option>
+          <option value="eleven_flash_v2_5" ${t.model === 'eleven_flash_v2_5' ? 'selected' : ''}>eleven_flash_v2_5</option>
+          <option value="eleven_turbo_v2_5" ${t.model === 'eleven_turbo_v2_5' ? 'selected' : ''}>eleven_turbo_v2_5</option>
+        </select></label>
+        <p class="muted tiny">המפתח נשמר רק בטלפון הזה ונשלח ישירות ל-ElevenLabs. כדאי ליצור ב-ElevenLabs מפתח נפרד עם הרשאת Text to Speech בלבד. את ה-Voice ID לוקחים מספריית הקולות (My Voices ← ⋯ ← Copy voice ID). קול שיצרתם משלכם או מהספרייה, גם קול שמדבר עברית.</p>
+      </div>
+      <div class="stack">
+        <button class="btn primary" id="tts-test" ${t.mode === 'off' ? 'disabled' : ''}>בדיקת קול</button>
+        <button class="btn ghost" id="tts-clear">מחיקת הקלטות שמורות</button>
+      </div>`;
+    seg($('#tts-mode'), t.mode, (v) => { t.mode = v; save(); $('#tts-eleven').hidden = v !== 'eleven'; $('#tts-test').disabled = v === 'off'; });
+    $('#tts-key').oninput = (e) => { t.key = e.target.value.trim(); save(); };
+    $('#tts-voice').oninput = (e) => { t.voiceId = e.target.value.trim(); save(); };
+    $('#tts-model').onchange = (e) => { t.model = e.target.value; save(); };
+    $('#tts-test').addEventListener('click', () => speak(`${roleName('S')}, על הברכיים. ידיים מאחורי הגב. ${roleName('D')} ${S.partners[S.dom].g === 'm' ? 'מחליט' : 'מחליטה'} מתי ממשיכים.`));
+    $('#tts-clear').addEventListener('click', () => Media.clearAudio().then(() => dialog('<h2>נמחק</h2>', [{ label: 'סגירה' }])));
+  }
 
   // ---------- אתחול ----------
   async function init() {

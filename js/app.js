@@ -16,6 +16,8 @@
     favorites: [], hidden: [], custom: [], session: null,
     media: {}, avatars: { a: false, b: false },
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
+    ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
+    customIllus: {},
   });
   let S = load();
   function load() { try { const j = JSON.parse(localStorage.getItem(KEY)); return j ? Object.assign(DEFAULT(), j) : DEFAULT(); } catch { return DEFAULT(); } }
@@ -48,7 +50,8 @@
   // ---------- גבולות ----------
   function catStatus(catId) {
     if (catId === AFTERCARE_ID) return 'yes';
-    const a = S.limits.a[catId] || 'maybe', b = S.limits.b[catId] || 'maybe';
+    const dflt = (catOf(catId) || {}).offByDefault ? 'no' : 'maybe';
+    const a = S.limits.a[catId] || dflt, b = S.limits.b[catId] || dflt;
     if (a === 'no' || b === 'no') return 'no';
     if (a === 'yes' && b === 'yes') return 'yes';
     return 'maybe';
@@ -61,7 +64,7 @@
   }
 
   // ---------- ניווט ----------
-  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts'];
+  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts', 'ai'];
   const TABS = { home: 'home', random: 'play', dice: 'dice', timer: 'timer', more: 'more' };
   let current = 'home';
   function show(name) {
@@ -77,6 +80,7 @@
     if (name === 'limits') renderLimitsScreen();
     if (name === 'dice') renderDice(false);
     if (name === 'tts') renderTts();
+    if (name === 'ai') renderAi();
   }
   $$('#tabbar button').forEach((b) => b.addEventListener('click', () => {
     const t = b.dataset.tab;
@@ -271,9 +275,9 @@
         <h2>עד איזו עוצמה</h2>
         <div class="seg" id="lm-max"><button type="button" data-v="1">1 חימום</button><button type="button" data-v="2">2 בינוני</button><button type="button" data-v="3">3 הכול</button></div>
         <button class="btn primary big" id="lm-done">סיימתי, ${p.g === 'm' ? 'מסתיר' : 'מסתירה'} את התשובות</button>`;
-      $$('.limit-row', host).forEach((row) => seg($('.seg', row), lim[row.dataset.cat] || 'maybe', (v) => { lim[row.dataset.cat] = v; save(); }));
+      $$('.limit-row', host).forEach((row) => seg($('.seg', row), lim[row.dataset.cat] || ((catOf(row.dataset.cat) || {}).offByDefault ? 'no' : 'maybe'), (v) => { lim[row.dataset.cat] = v; save(); }));
       seg($('#lm-max', host), String(S.maxLevel[who] || 3), (v) => { S.maxLevel[who] = +v; save(); });
-      $('#lm-done', host).addEventListener('click', () => { CATEGORIES.forEach((c) => { if (!lim[c.id]) lim[c.id] = 'maybe'; }); save(); onDone(); });
+      $('#lm-done', host).addEventListener('click', () => { CATEGORIES.forEach((c) => { if (!lim[c.id]) lim[c.id] = c.offByDefault ? 'no' : 'maybe'; }); save(); onDone(); });
     });
   }
   function renderLimitsScreen() {
@@ -554,8 +558,14 @@
     seg($('#cf-lvl'), String(cf.lvl || 1), (v) => { cf.lvl = +v; preview(); });
     seg($('#cf-to'), cf.to, (v) => { cf.to = v; preview(); });
     $('#cf-min').value = cf.min || ''; $('#cf-min').oninput = (e) => { cf.min = +e.target.value || 0; preview(); };
-    const ip = $('#cf-img'); ip.innerHTML = Object.keys(ILLUSTRATIONS).map((k) => `<button type="button" class="${k === cf.img ? 'on' : ''}" data-v="${k}">${illus(k)}</button>`).join('');
-    $$('button', ip).forEach((b) => b.addEventListener('click', () => { cf.img = b.dataset.v; $$('button', ip).forEach((x) => x.classList.toggle('on', x === b)); preview(); }));
+    const ip = $('#cf-img');
+    const renderPick = () => {
+      ip.innerHTML = Object.keys(CUSTOM_ILLUS).map((k) => `<button type="button" class="ai ${k === cf.img ? 'on' : ''}" data-v="${k}">${illus(k)}</button>`).join('')
+        + Object.keys(ILLUSTRATIONS).map((k) => `<button type="button" class="${k === cf.img ? 'on' : ''}" data-v="${k}">${illus(k)}</button>`).join('');
+      $$('button', ip).forEach((b) => b.addEventListener('click', () => { cf.img = b.dataset.v; $$('button', ip).forEach((x) => x.classList.toggle('on', x === b)); preview(); }));
+    };
+    renderPick();
+    $('#cf-ai').onclick = () => aiIllustrationDialog(cf, (id) => { cf.img = id; renderPick(); preview(); });
     $('#cf-text').value = cf.text; $('#cf-text').oninput = (e) => { cf.text = e.target.value; preview(); };
     const preview = () => { $('#cf-preview').innerHTML = cf.text.trim() ? cardHtml(cf, false) : '<p class="muted center">הטקסט יופיע כאן כפי שייראה במשחק.</p>'; hydrateCard($('#cf-preview')); };
     $('#cf-media').onclick = () => mediaDialog(cf.id, preview);
@@ -678,9 +688,126 @@
     $('#tts-clear').addEventListener('click', () => Media.clearAudio().then(() => dialog('<h2>נמחק</h2>', [{ label: 'סגירה' }])));
   }
 
+  // ---------- איורים ב-AI (Claude) ----------
+  const AI_MODELS = [['claude-opus-5-5', 'Opus 5.5 (ברירת מחדל, הכי טוב)'], ['claude-sonnet-5-5', 'Sonnet 5.5 (זול יותר)'], ['claude-haiku-5-5', 'Haiku 5.5 (הכי זול)']];
+  const AI_STYLE = `You draw icons for a Hebrew couples' game app. Output ONLY the inner markup of an SVG <symbol> (no <svg>, no <symbol>, no code fences, no prose).
+Canvas: viewBox 0 0 100 100, keep a 6 unit margin. Allowed elements: path, circle, ellipse, rect, line, polyline, polygon. 3 to 12 elements.
+Style: art-deco erotic line art. A single elegant gold line on dark (stroke is inherited: do NOT set stroke or stroke-width; fill is inherited as none). Small accents may use fill="currentColor" (dots, a pupil). Dashed detail lines may use stroke-dasharray="3 4". No text, no gradients, no defs, no filters, no images.
+Subject: sensual, confident, adult: silhouettes, curves of a back or hip, bound wrists, a collar, a heel, a bitten lip, rope, a leash, a hand on skin. Suggest, never show explicit genitals. Keep it minimal and readable at 40px.
+Two examples of the house style:
+EXAMPLE kneeling figure:
+` + ILLUSTRATIONS.kneel + `
+EXAMPLE corset:
+` + ILLUSTRATIONS.corset;
+  const SVG_TAGS = new Set(['path', 'circle', 'ellipse', 'rect', 'line', 'polyline', 'polygon']);
+  const SVG_ATTRS = new Set(['d', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'width', 'height', 'points', 'x1', 'y1', 'x2', 'y2', 'fill', 'stroke-dasharray', 'stroke-width', 'opacity', 'transform', 'stroke-linecap', 'stroke-linejoin']);
+  function sanitizeSvgBody(raw) {
+    let t = String(raw || '').trim();
+    const fence = t.match(/```(?:svg|xml|html)?\s*([\s\S]*?)```/i); if (fence) t = fence[1];
+    const sym = t.match(/<symbol[^>]*>([\s\S]*?)<\/symbol>/i); if (sym) t = sym[1];
+    const svg = t.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i); if (svg) t = svg[1];
+    const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${t}</svg>`, 'image/svg+xml');
+    if (doc.querySelector('parsererror')) throw new Error('SVG לא תקין');
+    const out = [];
+    for (const el of [...doc.documentElement.children]) {
+      const tag = el.localName.toLowerCase(); if (!SVG_TAGS.has(tag)) continue;
+      const attrs = [];
+      for (const a of [...el.attributes]) {
+        const n = a.name.toLowerCase(), v = a.value.trim();
+        if (!SVG_ATTRS.has(n) || /url\(|javascript|<|>|expression/i.test(v)) continue;
+        if (n === 'fill' && v !== 'none' && v !== 'currentColor') continue;
+        attrs.push(`${n}="${v.replace(/"/g, '')}"`);
+      }
+      out.push(`<${tag} ${attrs.join(' ')}/>`);
+    }
+    if (!out.length) throw new Error('לא נמצאו צורות באיור');
+    if (out.length > 40) out.length = 40;
+    return out.join('');
+  }
+  let sdkPromise = null;
+  function loadSdk() {
+    if (!sdkPromise) sdkPromise = import('https://esm.sh/@anthropic-ai/sdk@0.133.0').then((m) => m.default || m.Anthropic || m);
+    return sdkPromise;
+  }
+  async function generateIllustration(subject) {
+    const { key, model, effort } = S.ai;
+    if (!key) throw new Error('חסר מפתח API של Anthropic. אפשר להגדיר ב״עוד ← איורים ב-AI״.');
+    const Anthropic = await loadSdk();
+    const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+    const req = {
+      model, max_tokens: 6000,
+      output_config: { effort: effort || 'medium' },
+      system: AI_STYLE,
+      messages: [{ role: 'user', content: `Draw: ${subject}` }],
+    };
+    let res;
+    if (model !== 'claude-haiku-5-5') {
+      res = await client.beta.messages.create({ ...req, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
+    } else res = await client.messages.create(req);
+    if (res.stop_reason === 'refusal') throw new Error('המודל סירב לצייר את זה. נסו ניסוח אחר, פחות מפורש.');
+    const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+    return sanitizeSvgBody(text);
+  }
+  function aiErrorMessage(e) {
+    const st = e && e.status;
+    if (st === 401) return 'המפתח לא תקין (401).';
+    if (st === 429) return 'יותר מדי בקשות או נגמר האשראי (429). נסו שוב עוד רגע.';
+    if (st === 400) return 'הבקשה נדחתה (400): ' + (e.message || '');
+    if (e && /Failed to fetch|NetworkError|import/i.test(e.message)) return 'אין חיבור לרשת, או שהרשת חוסמת את api.anthropic.com / esm.sh.';
+    return (e && e.message) || 'שגיאה לא ידועה';
+  }
+  function aiIllustrationDialog(card, onSaved) {
+    const seed = card && card.text ? plainText(card).slice(0, 220) : '';
+    let body = null, prompt = seed;
+    const render = (state, msg) => {
+      const prev = state === 'loading' ? '<div class="ai-preview loading"><span class="spinner"></span></div>'
+        : body ? `<div class="ai-preview"><svg class="il" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg></div>` : '';
+      dialog(`<h2>איור ב-AI</h2><p class="muted tiny">תארו מה לצייר. המודל מצייר בסגנון הקווים של האפליקציה. כל ניסיון עולה כסף בחשבון ה-API שלכם.</p>
+        <textarea id="ai-prompt" rows="3" placeholder="למשל: אישה כורעת עם קולר, ידיים מאחורי הגב, בפרופיל">${esc(prompt)}</textarea>${prev}
+        ${msg ? `<p class="danger tiny">${esc(msg)}</p>` : ''}`, [
+        ...(body ? [{ label: 'לשמור ולהשתמש באיור', cls: 'primary', onClick: () => { const id = 'ai_' + Date.now().toString(36); S.customIllus[id] = body; save(); addCustomIllustration(id, body); onSaved && onSaved(id); } }] : []),
+        ...(state !== 'loading' ? [{ label: body ? 'לצייר שוב' : '✨ לצייר', cls: body ? 'ghost' : 'primary', onClick: () => { run($('#ai-prompt').value.trim()); return true; } }] : []),
+        { label: 'סגירה' },
+      ]);
+    };
+    const run = async (p) => {
+      if (!p) return;
+      prompt = p; render('loading');
+      try { body = await generateIllustration(p); render('ok'); }
+      catch (e) { body = null; render('error', aiErrorMessage(e)); }
+    };
+    render('idle');
+  }
+  function renderAi() {
+    const a = S.ai;
+    $('#ai-body').innerHTML = `
+      <p class="muted">איורים חדשים לכרטיסים שלכם, מצוירים על ידי Claude בסגנון הקווים של האפליקציה. דורש מפתח API של Anthropic ורשת. המפתח נשמר רק בטלפון ונשלח ישירות ל-api.anthropic.com. כל איור הוא בקשה אחת, בדרך כלל כמה אגורות עד כמה עשרות אגורות, לפי המודל.</p>
+      <div class="form">
+        <label>מפתח API של Anthropic<input id="ai-key" type="password" value="${esc(a.key)}" placeholder="sk-ant-..." autocomplete="off" dir="ltr"></label>
+        <label>מודל<select id="ai-model" dir="ltr">${AI_MODELS.map(([v, l]) => `<option value="${v}" ${a.model === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label>מאמץ (איכות מול מחיר)
+          <div class="seg" id="ai-effort"><button type="button" data-v="low">נמוך</button><button type="button" data-v="medium">בינוני</button><button type="button" data-v="high">גבוה</button></div>
+        </label>
+      </div>
+      <div class="stack">
+        <button class="btn primary" id="ai-test">✨ ניסיון: לצייר ״קולר עם רצועה״</button>
+      </div>
+      <h2>איורים שיצרתם (${Object.keys(S.customIllus).length})</h2>
+      <div class="imgpick" id="ai-list">${Object.keys(S.customIllus).map((k) => `<button type="button" class="ai" data-v="${k}" title="מחיקה">${illus(k)}</button>`).join('') || '<p class="muted tiny">עדיין אין. יוצרים מתוך טופס כרטיס חדש: ״✨ איור ב-AI״.</p>'}</div>
+      <p class="muted tiny">לחיצה על איור מוחקת אותו. כרטיסים שהשתמשו בו יחזרו לאיור ברירת המחדל.</p>`;
+    $('#ai-key').oninput = (e) => { a.key = e.target.value.trim(); save(); };
+    $('#ai-model').onchange = (e) => { a.model = e.target.value; save(); };
+    seg($('#ai-effort'), a.effort || 'medium', (v) => { a.effort = v; save(); });
+    $('#ai-test').addEventListener('click', () => aiIllustrationDialog({ text: 'קולר עור עם טבעת ורצועה שנמשכת הצידה' }, () => renderAi()));
+    $$('#ai-list button', $('#ai-body')).forEach((b) => b.addEventListener('click', () => dialog('<h2>למחוק את האיור?</h2>', [
+      { label: 'מחיקה', cls: 'danger', onClick: () => { const id = b.dataset.v; delete S.customIllus[id]; S.custom.forEach((c) => { if (c.img === id) c.img = 'heart'; }); save(); removeCustomIllustration(id); renderAi(); } },
+      { label: 'ביטול' }])));
+  }
+
   // ---------- אתחול ----------
   async function init() {
     $('#sprite').innerHTML = illustrationSprite();
+    Object.entries(S.customIllus || {}).forEach(([id, body]) => addCustomIllustration(id, body));
     buildPad();
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
     if (S.pinHash) await unlockFlow();

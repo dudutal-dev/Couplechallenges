@@ -102,6 +102,7 @@
     <button class="menu-item" data-go="editor"><svg class="il"><use href="#il-marker"/></svg><span>החפיסה: עריכה, הוספה, מועדפים</span></button>
     <button class="menu-item" data-go="limits"><svg class="il"><use href="#il-chain"/></svg><span>גבולות ועוצמה</span></button>
     <button class="menu-item" data-go="partners"><svg class="il"><use href="#il-heart"/></svg><span>שמות, תפקידים ומילת עצירה</span></button>
+    <button class="menu-item" data-go="ai"><svg class="il"><use href="#il-marker"/></svg><span>איורים ב-AI (Claude)</span></button>
     <button class="menu-item" data-go="tts"><svg class="il"><use href="#il-music"/></svg><span id="tts-label">הקראת כרטיסים</span></button>
     <button class="menu-item" id="btn-media-usage"><svg class="il"><use href="#il-camera"/></svg><span id="media-usage">תמונות וסרטונים שלכם</span></button>
     <button class="menu-item" data-go="pin"><svg class="il"><use href="#il-lock"/></svg><span id="pin-label">קוד נעילה</span></button>
@@ -141,7 +142,10 @@
     </label>
     <label>משך בדקות (לא חובה)<input type="number" id="cf-min" min="0" max="120" inputmode="numeric"></label>
     <label>איור<div class="imgpick" id="cf-img"></div></label>
-    <button type="button" class="btn ghost" id="cf-media">🖼 תמונה או סרטון שלכם במקום האיור</button>
+    <div class="row gap">
+      <button type="button" class="btn ghost" id="cf-ai">✨ איור ב-AI</button>
+      <button type="button" class="btn ghost" id="cf-media">🖼 תמונה או סרטון</button>
+    </div>
     <label>הטקסט
       <textarea id="cf-text" rows="6" placeholder="{d:קשור|קשרי} את {S} ו..."></textarea>
     </label>
@@ -178,7 +182,9 @@
       <li><b>משהו שלא סוכם מראש לא קורה הערב.</b> רעיון חדש באמצע? שומרים לפעם הבאה ומדברים עליו בבוקר.</li>
     </ul>
     <h2>לא באפליקציה הזאת, בכוונה</h2>
-    <p>משחקי נשימה וחניקה, מכות על הצוואר, הגב התחתון, הבטן או המפרקים, קשירה סביב הצוואר, דברים שמשאירים לבד אדם קשור, ואלכוהול או סמים כחלק מהמשחק. הסיכון בהם לא פרופורציונלי למשחק ערב.</p>
+    <p>חניקה אמיתית ומשחקי נשימה (לחץ על קנה הנשימה או סחיטה של צידי הצוואר), מכות על הצוואר, הגב התחתון, הבטן או המפרקים, קשירה סביב הצוואר, דברים שמשאירים לבד אדם קשור, ואלכוהול או סמים כחלק מהמשחק. הסיכון בהם לא פרופורציונלי למשחק ערב.</p>
+    <h2>יד על הצוואר</h2>
+    <p>יש קטגוריה כזאת, כבויה כברירת מחדל, ונכנסת רק אם שניכם מסמנים ״כן״. היא מחווה של שליטה: כף יד מונחת, אחיזה בעורף או בלסת. בלי לחץ שמפריע לנשימה, בלי סחיטה של הצדדים. לחץ על צידי הצוואר סוגר את העורקים למוח ומפיל אדם תוך שניות, לפעמים עם נזק קבוע, בלי שום אזהרה מוקדמת. לכן: הגרון תמיד חופשי, סימן יד מוסכם מראש, לא בשילוב עם ידיים קשורות או פה חסום, ובכל סחרחורת או שינוי בקול היד יורדת והקטגוריה נגמרת לערב.</p>
     <h2>קשירה</h2>
     <p>שתי אצבעות נכנסות בקלות מתחת לכל קשר. מספריים בטוחות בהישג יד. בדיקה כל 10 דקות: אצבעות חמות, צבע רגיל, אפשר להזיז. עקצוץ או קור = משחררים מיד.</p>
     <h2>מכות</h2>
@@ -197,6 +203,15 @@
     <h1>הקראה</h1>
   </header>
   <div id="tts-body"></div>
+</section>
+
+<!-- איורים ב-AI -->
+<section class="screen" id="scr-ai" hidden>
+  <header class="top row">
+    <button class="btn back" data-go="more">‹ עוד</button>
+    <h1>איורים ב-AI</h1>
+  </header>
+  <div id="ai-body"></div>
 </section>
 
 <!-- תמונה במסך מלא -->

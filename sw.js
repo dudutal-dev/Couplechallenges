@@ -1,5 +1,5 @@
 // Service worker – עבודה ללא רשת אחרי הפתיחה הראשונה
-const CACHE = 'ktifa-v3';
+const CACHE = 'ktifa-v5';
 const ASSETS = [
   './', './index.html', './css/style.css',
   './js/app.js', './js/cards-data.js', './js/illustrations.js', './js/media.js',
@@ -14,6 +14,10 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  const url = e.request.url;
+  const isFont = url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com');
+  // בקשות לשרתים אחרים (API, CDN של ה-SDK) עוברות ישירות לרשת, בלי מטמון
+  if (!url.startsWith(self.location.origin) && !isFont) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((cached) => {
       const network = fetch(e.request).then((res) => {

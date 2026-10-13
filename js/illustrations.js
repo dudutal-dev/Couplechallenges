@@ -69,7 +69,24 @@ function illustrationSprite() {
     ).join('') + '</svg>';
 }
 
+// איורים שנוצרו באפליקציה (AI). נטענים מה-state ומתווספים לספרייט בזמן ריצה.
+const CUSTOM_ILLUS = {};
+function addCustomIllustration(id, body) {
+  CUSTOM_ILLUS[id] = body;
+  const svg = document.querySelector('#sprite svg');
+  if (!svg) return;
+  let sym = svg.querySelector('#il-' + CSS.escape(id));
+  if (!sym) { sym = document.createElementNS('http://www.w3.org/2000/svg', 'symbol'); sym.id = 'il-' + id; svg.appendChild(sym); }
+  sym.setAttribute('viewBox', '0 0 100 100'); sym.setAttribute('fill', 'none'); sym.setAttribute('stroke', 'currentColor');
+  sym.setAttribute('stroke-width', '2.6'); sym.setAttribute('stroke-linecap', 'round'); sym.setAttribute('stroke-linejoin', 'round');
+  sym.innerHTML = body;
+}
+function removeCustomIllustration(id) {
+  delete CUSTOM_ILLUS[id];
+  const sym = document.querySelector('#sprite svg #il-' + CSS.escape(id)); if (sym) sym.remove();
+}
+
 function illus(id, cls = '') {
-  if (!ILLUSTRATIONS[id]) id = 'heart';
+  if (!ILLUSTRATIONS[id] && !CUSTOM_ILLUS[id]) id = 'heart';
   return `<svg class="il ${cls}" aria-hidden="true"><use href="#il-${id}"/></svg>`;
 }

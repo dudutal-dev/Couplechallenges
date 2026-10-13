@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.13.16';
+  const APP_VERSION = '2026.10.13.17';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -18,7 +18,7 @@
     media: {}, avatars: { a: false, b: false },
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
     ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
-    showSafety: false,
+    showSafety: false, eveningAlt: false,
     customIllus: {},
   });
   let S = load();
@@ -224,7 +224,7 @@
         </div>
         <button class="btn primary big" id="su-next">${setupOnlyPartners ? 'שמירה' : 'הלאה: הגבולות של כל אחד'}</button>`;
       seg($('#pa-g'), p.a.g, (v) => { p.a.g = v; }); seg($('#pb-g'), p.b.g, (v) => { p.b.g = v; }); seg($('#su-dom'), draft.dom, (v) => { draft.dom = v; });
-      const modeHelp = { fixed: 'מי שנבחר מוביל את כל הערב. אפשר להחליף ידנית בדף הבית.', alternate: 'משימה אחת מוביל/ה א׳, הבאה ב׳, וחוזר חלילה. מי שנבחר למעלה מתחיל. הערב עדיין מתחמם לאט מעוצמה 1 ל-3.', random: 'בכל ערב חדש האפליקציה מגרילה מי מוביל.' };
+      const modeHelp = { fixed: 'מי שנבחר מוביל את כל הערב. אפשר להחליף ידנית בדף הבית.', alternate: 'משימה אחת מוביל/ה א׳, הבאה ב׳, וחוזר חלילה. מי שנבחר למעלה מתחיל. הערב עדיין מתחמם לאט מעוצמה 1 ל-3.', random: 'בכל ערב חדש האפליקציה מגרילה גם מי מוביל וגם אם ההובלה קבועה או מתחלפת כל משימה.' };
       const setHelp = (v) => { $('#su-mode-help').textContent = modeHelp[v]; };
       seg($('#su-mode'), draft.roleMode || 'fixed', (v) => { draft.roleMode = v; setHelp(v); }); setHelp(draft.roleMode || 'fixed');
       hydrateAvatars(body);
@@ -316,7 +316,7 @@
     hydrateAvatars($('#home-roles'));
     $('#home-mode').innerHTML = `<div class="seg" id="home-mode-seg"><button type="button" data-v="fixed">קבוע כל הערב</button><button type="button" data-v="alternate">מתחלף כל משימה</button><button type="button" data-v="random">הגרלה בכל ערב</button></div>
       <p class="muted tiny center" id="home-mode-help"></p>`;
-    const help = { fixed: `${c.D} ${c.dg === 'm' ? 'מוביל' : 'מובילה'} את כל הערב. ״החלפת תפקידים״ מחליף ידנית.`, alternate: `משימה אחת ${c.D} ${c.dg === 'm' ? 'מוביל' : 'מובילה'}, הבאה ${c.S}, וחוזר חלילה. גם בקלף אקראי ובקוביות.`, random: 'בכל ערב חדש האפליקציה מגרילה מי מוביל.' };
+    const help = { fixed: `${c.D} ${c.dg === 'm' ? 'מוביל' : 'מובילה'} את כל הערב. ״החלפת תפקידים״ מחליף ידנית.`, alternate: `משימה אחת ${c.D} ${c.dg === 'm' ? 'מוביל' : 'מובילה'}, הבאה ${c.S}, וחוזר חלילה. גם בקלף אקראי ובקוביות.`, random: 'בכל ערב חדש האפליקציה מגרילה גם מי מוביל וגם אם זה קבוע או מתחלף כל משימה.' + (S.session ? ` הערב: ${c.D} ${c.dg === 'm' ? 'מוביל' : 'מובילה'}, ${S.eveningAlt ? 'מתחלף' : 'קבוע'}.` : '') };
     $('#home-mode-help').textContent = help[S.roleMode] || help.fixed;
     seg($('#home-mode-seg'), S.roleMode || 'fixed', (v) => { S.roleMode = v; save(); renderHome(); });
     const ses = S.session;
@@ -328,8 +328,17 @@
   }
   $('#btn-swap').addEventListener('click', () => { S.dom = sub(); save(); renderHome(); if (S.session) { /* הכרטיסים מתרנדרים מחדש בעת הצגה */ } });
   $('#btn-new').addEventListener('click', () => {
-    const go = () => { if (S.roleMode === 'random') S.dom = Math.random() < 0.5 ? 'a' : 'b'; buildSession(); startPlay('session'); };
-    if (S.session && S.session.idx < S.session.cards.length) dialog('<h2>ערב חדש?</h2><p>הערב הנוכחי יימחק ותיבנה חפיסה חדשה.</p>', [{ label: 'כן, ערב חדש', cls: 'primary', onClick: go }, { label: 'ביטול' }]);
+    const go = () => {
+      if (S.roleMode === 'random') {
+        S.dom = Math.random() < 0.5 ? 'a' : 'b'; S.eveningAlt = Math.random() < 0.5; save();
+        const c = ctx();
+        dialog(`<h2>ההגרלה</h2><div class="draw"><div class="draw-row">${illus('key')}<b>${c.D}</b> ${c.dg === 'm' ? 'מוביל' : 'מובילה'}${S.eveningAlt ? ' ראשון' : ' את כל הערב'}</div><div class="draw-row">${illus(S.eveningAlt ? 'cuffs' : 'lock')}<b>${S.eveningAlt ? 'מתחלף כל משימה' : 'קבוע כל הערב'}</b></div></div>`,
+          [{ label: 'מתחילים', cls: 'primary', onClick: () => { buildSession(); startPlay('session'); } }]);
+        return true; // הדיאלוג של ההגרלה נשאר פתוח גם כשנקרא מתוך דיאלוג האישור
+      }
+      buildSession(); startPlay('session');
+    };
+    if (S.session && S.session.idx < S.session.cards.length) dialog('<h2>ערב חדש?</h2><p>הערב הנוכחי יימחק ותיבנה חפיסה חדשה.</p>', [{ label: 'כן, ערב חדש', cls: 'primary', onClick: () => go() }, { label: 'ביטול' }]);
     else go();
   });
   $('#btn-resume').addEventListener('click', () => startPlay('session'));
@@ -364,7 +373,7 @@
     randomCard = c; save(); return c;
   }
   function startRandom() { if (pickRandom()) startPlay('random'); }
-  const alternating = () => S.roleMode === 'alternate';
+  const alternating = () => S.roleMode === 'alternate' || (S.roleMode === 'random' && !!S.eveningAlt);
   function flipRoles() { S.dom = sub(); }
   function sessionAdvance() { const s = S.session; if (!s) return; s.idx++; if (alternating() && s.idx < s.cards.length) flipRoles(); save(); }
   function sessionSkip(c) {
@@ -968,7 +977,7 @@ EXAMPLE corset:
     if (a === 'dice') { tvView = 'dice'; return renderTv(); }
     if (a === 'card') { if (!S.session && !randomCard) { playMode = 'random'; pickRandom(); } tvView = 'card'; return renderTv(); }
     if (a === 'roll') { if (rolling) return; rolling = true; const sets = diceSets(), pick = (x) => x[Math.floor(Math.random() * x.length)]; let n = 0; const iv = setInterval(() => { diceResult = { action: pick(sets.action), body: pick(sets.body), time: pick(sets.time) }; if (++n >= 8) { clearInterval(iv); rolling = false; if (alternating()) { flipRoles(); save(); } } renderTv(); }, 90); return; }
-    if (a === 'start') { if (S.roleMode === 'random') S.dom = Math.random() < 0.5 ? 'a' : 'b'; buildSession(); playMode = 'session'; tvView = 'card'; return renderTv(); }
+    if (a === 'start') { if (S.roleMode === 'random') { S.dom = Math.random() < 0.5 ? 'a' : 'b'; S.eveningAlt = Math.random() < 0.5; } buildSession(); playMode = 'session'; tvView = 'card'; return renderTv(); }
     if (a === 'random') { playMode = 'random'; pickRandom(); tvView = 'card'; return renderTv(); }
     if (a === 'finish') { S.session = null; save(); return renderTv(); }
     if (a === 'cast') return tvCast();

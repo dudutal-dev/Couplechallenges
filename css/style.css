@@ -346,3 +346,7 @@ body.tv-receiver #scr-tv::after{display:none}
 .tv-lead{display:inline-flex;align-items:center;gap:.5cqw;color:var(--gold2)}
 .tv-lead .il{width:2.2cqw;height:2.2cqw}
 #home-mode{margin:4px 0 8px}
+
+.draw{display:flex;flex-direction:column;gap:10px;margin:14px 0 6px}
+.draw-row{display:flex;align-items:center;justify-content:center;gap:10px;font-size:1.15rem;padding:12px;border:1px solid var(--line2);border-radius:14px;background:#0006}
+.draw-row .il{width:1.6em;height:1.6em}

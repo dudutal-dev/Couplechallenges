@@ -102,6 +102,7 @@
     <button class="menu-item" data-go="editor"><svg class="il"><use href="#il-marker"/></svg><span>החפיסה: עריכה, הוספה, מועדפים</span></button>
     <button class="menu-item" data-go="limits"><svg class="il"><use href="#il-chain"/></svg><span>גבולות ועוצמה</span></button>
     <button class="menu-item" data-go="partners"><svg class="il"><use href="#il-heart"/></svg><span>שמות, תפקידים ומילת עצירה</span></button>
+    <button class="menu-item" data-go="tv"><svg class="il"><use href="#il-camera"/></svg><span>קאסט לטלוויזיה (מצב 16:9)</span></button>
     <button class="menu-item" data-go="ai"><svg class="il"><use href="#il-marker"/></svg><span>איורים ב-AI (Claude)</span></button>
     <button class="menu-item" data-go="tts"><svg class="il"><use href="#il-music"/></svg><span id="tts-label">הקראת כרטיסים</span></button>
     <button class="menu-item" id="btn-media-usage"><svg class="il"><use href="#il-camera"/></svg><span id="media-usage">תמונות וסרטונים שלכם</span></button>
@@ -203,6 +204,11 @@
     <h1>הקראה</h1>
   </header>
   <div id="tts-body"></div>
+</section>
+
+<!-- טלוויזיה: במה 16:9 -->
+<section class="screen tv" id="scr-tv" hidden>
+  <div class="tv-stage" id="tv-stage"></div>
 </section>
 
 <!-- איורים ב-AI -->

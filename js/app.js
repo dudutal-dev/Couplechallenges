@@ -50,9 +50,11 @@
   // ---------- גבולות ----------
   function catStatus(catId) {
     if (catId === AFTERCARE_ID) return 'yes';
-    const dflt = (catOf(catId) || {}).offByDefault ? 'no' : 'maybe';
+    const adv = (catOf(catId) || {}).offByDefault;
+    const dflt = adv ? 'no' : 'maybe';
     const a = S.limits.a[catId] || dflt, b = S.limits.b[catId] || dflt;
     if (a === 'no' || b === 'no') return 'no';
+    if (adv && (a !== 'yes' || b !== 'yes')) return 'no';
     if (a === 'yes' && b === 'yes') return 'yes';
     return 'maybe';
   }
@@ -64,7 +66,7 @@
   }
 
   // ---------- ניווט ----------
-  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts', 'ai'];
+  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts', 'ai', 'tv'];
   const TABS = { home: 'home', random: 'play', dice: 'dice', timer: 'timer', more: 'more' };
   let current = 'home';
   function show(name) {
@@ -92,6 +94,7 @@
     if (g === 'random') return startRandom();
     if (g === 'partners') return startSetup(1, true);
     if (g === 'pin') return pinDialog();
+    if (g === 'tv') return enterTv();
     show(g);
   }));
   $$('[data-stop]').forEach((b) => b.addEventListener('click', openStop));
@@ -249,10 +252,11 @@
     $$('button', el).forEach((b) => b.addEventListener('click', () => { set(b.dataset.v); onChange(b.dataset.v); }));
   }
   function summaryHtml() {
-    return CATEGORIES.map((c) => {
+    return CATEGORIES.map((c, i) => {
       const s = catStatus(c.id), on = catAllowed(c.id);
-      const label = s === 'yes' ? 'במשחק' : s === 'no' ? 'מחוץ למשחק' : on ? 'במשחק (״אולי״)' : 'רק אם מסמנים ״אולי״';
-      return `<div class="allowed-row ${on ? 'on' : 'off'}">${illus(c.img)}<span>${c.name}</span><em>${label}</em></div>`;
+      const label = s === 'yes' ? 'במשחק' : s === 'no' ? (c.offByDefault ? 'מחוץ למשחק (מתקדם)' : 'מחוץ למשחק') : on ? 'במשחק (״אולי״)' : 'רק אם מסמנים ״אולי״';
+      const head = c.offByDefault && !(CATEGORIES[i - 1] || {}).offByDefault ? '<div class="adv-divider">מתקדם</div>' : '';
+      return `${head}<div class="allowed-row ${on ? 'on' : 'off'}">${illus(c.img)}<span>${c.name}</span><em>${label}</em></div>`;
     }).join('') + `<div class="allowed-row on">${illus('stopwatch')}<span>עוצמה מרבית</span><em>${maxLevel()} מתוך 3</em></div>`;
   }
 
@@ -267,8 +271,9 @@
     $('#lm-start', host).addEventListener('click', () => {
       const lim = S.limits[who];
       host.innerHTML = `<h1>${esc(name)}: הגבולות שלי</h1>
-        <div class="limits">${CATEGORIES.map((c) => `
-          <div class="limit-row" data-cat="${c.id}">
+        <div class="limits">${CATEGORIES.map((c, i) => `
+          ${c.offByDefault && !(CATEGORIES[i - 1] || {}).offByDefault ? '<h2 class="adv-head">מתקדם: כבוי כברירת מחדל</h2><p class="muted tiny">נכנס למשחק רק אם שניכם מסמנים ״כן״. ״אולי״ לא מספיק כאן.</p>' : ''}
+          <div class="limit-row ${c.offByDefault ? 'adv' : ''}" data-cat="${c.id}">
             <div class="limit-head">${illus(c.img)}<div><b>${c.name}</b><small>${c.desc}</small>${c.safe ? `<small class="safe-note">${c.safe}</small>` : ''}</div></div>
             <div class="seg tri"><button type="button" data-v="yes">כן</button><button type="button" data-v="maybe">אולי</button><button type="button" data-v="no">לא</button></div>
           </div>`).join('')}</div>
@@ -336,11 +341,19 @@
   // ---------- משחק ----------
   let playMode = 'session', randomCard = null, cardTimer = null;
   function startPlay(mode) { playMode = mode; show('play'); renderPlay(); requestWake(); }
-  function startRandom() {
+  function pickRandom() {
     const p = pool();
-    if (!p.length) { dialog('<h2>אין משימות</h2><p>שניכם צריכים לסמן לפחות קטגוריה אחת ״כן״, או להפעיל ״לכלול אולי״.</p>', [{ label: 'לגבולות', cls: 'primary', onClick: () => show('limits') }, { label: 'סגירה' }]); return; }
+    if (!p.length) { dialog('<h2>אין משימות</h2><p>שניכם צריכים לסמן לפחות קטגוריה אחת ״כן״, או להפעיל ״לכלול אולי״.</p>', [{ label: 'לגבולות', cls: 'primary', onClick: () => show('limits') }, { label: 'סגירה' }]); return null; }
     let c; do { c = p[Math.floor(Math.random() * p.length)]; } while (p.length > 1 && randomCard && c.id === randomCard.id);
-    randomCard = c; startPlay('random');
+    randomCard = c; return c;
+  }
+  function startRandom() { if (pickRandom()) startPlay('random'); }
+  function sessionAdvance() { const s = S.session; if (!s) return; s.idx++; save(); }
+  function sessionSkip(c) {
+    const s = S.session; if (!s) return;
+    const alt = shuffle(pool()).find((x) => x.lvl === c.lvl && !s.cards.includes(x.id));
+    if (alt) s.cards[s.idx] = alt.id; else s.idx++;
+    save();
   }
   function currentCard() {
     if (playMode === 'random') return randomCard;
@@ -381,7 +394,7 @@
     if (!c) { S.session = null; save(); return show('home'); }
     host.innerHTML = cardHtml(c); hydrateCard(host);
     const fav = S.favorites.includes(c.id);
-    const tools = `<div class="row gap tools"><button class="btn ghost small" id="pa-media">${S.media[c.id] ? '🖼 החלפת תמונה/סרטון' : '🖼 תמונה או סרטון שלכם'}</button>${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}</div>`;
+    const tools = `<div class="row gap tools"><button class="btn ghost small" id="pa-media">${S.media[c.id] ? '🖼 החלפת תמונה/סרטון' : '🖼 תמונה או סרטון שלכם'}</button>${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}<button class="btn ghost small" id="pa-tv">📺 טלוויזיה</button></div>`;
     acts.innerHTML = playMode === 'session'
       ? `<button class="btn primary big" id="pa-done">בוצע, הבא</button>
          <div class="row gap">
@@ -395,6 +408,7 @@
            <button class="btn ghost" id="pa-hide">לא שוב</button>
          </div>${tools}`;
     $('#pa-media').addEventListener('click', () => mediaDialog(c.id, renderPlay));
+    $('#pa-tv').addEventListener('click', enterTv);
     $('#pa-speak') && $('#pa-speak').addEventListener('click', () => speak(plainText(c)));
     const next = () => { S.session.idx++; save(); renderPlay(); };
     $('#pa-done') && $('#pa-done').addEventListener('click', next);
@@ -437,7 +451,7 @@
     const after = shuffle(CARDS.filter((c) => c.cat === AFTERCARE_ID))[0];
     S.session = { cards: [after.id], idx: 0, startedAt: Date.now() }; save(); startPlay('session');
   });
-  $('#stop-end').addEventListener('click', () => { $('#stop-overlay').hidden = true; S.session = null; save(); show('home'); });
+  $('#stop-end').addEventListener('click', () => { $('#stop-overlay').hidden = true; S.session = null; save(); if (tvOn) exitTv(); show('home'); });
 
   // ---------- קוביות ----------
   let diceResult = null, rolling = false;
@@ -467,7 +481,7 @@
   let tTotal = 60, tLeft = 60, tEnd = null, tIv = null;
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   const ARC = 2 * Math.PI * 46;
-  function timerDraw() { $('#timer-face').textContent = fmt(tLeft); $('#timer-arc').style.strokeDashoffset = ARC * (1 - (tTotal ? tLeft / tTotal : 0)); $('#timer-start').textContent = tIv ? 'השהיה' : (tLeft < tTotal && tLeft > 0 ? 'המשך' : 'התחל'); }
+  function timerDraw() { const tt = $('#tv-timer'); if (tt) { tt.textContent = (tIv || tLeft < tTotal) ? fmt(tLeft) : ''; tt.classList.toggle('run', !!tIv); } $('#timer-face').textContent = fmt(tLeft); $('#timer-arc').style.strokeDashoffset = ARC * (1 - (tTotal ? tLeft / tTotal : 0)); $('#timer-start').textContent = tIv ? 'השהיה' : (tLeft < tTotal && tLeft > 0 ? 'המשך' : 'התחל'); }
   function timerSet(sec) { timerPause(); tTotal = tLeft = sec; timerDraw(); }
   function timerStart() {
     if (tLeft <= 0) tLeft = tTotal;
@@ -804,12 +818,142 @@ EXAMPLE corset:
       { label: 'ביטול' }])));
   }
 
+  // ---------- טלוויזיה: במה 16:9 לשיקוף מסך, ושידור Presentation API ----------
+  let tvOn = false, tvView = 'card', tvConn = null, tvReq = null;
+  const TV_URL = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html?tv=1';
+  const isReceiver = new URLSearchParams(location.search).get('tv') === '1';
+  async function enterTv() {
+    tvOn = true; tvView = diceResult && current === 'dice' ? 'dice' : 'card';
+    document.body.classList.add('tv-on'); show('tv'); renderTv(); requestWake();
+    try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch { /* iOS */ }
+    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { /* לא נתמך */ }
+  }
+  function exitTv() {
+    tvOn = false; document.body.classList.remove('tv-on');
+    try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch { /* */ }
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch { /* */ }
+    if (tvConn) { try { tvConn.terminate(); } catch { /* */ } tvConn = null; }
+    show(playMode === 'random' && randomCard ? 'play' : (S.session ? 'play' : 'home'));
+  }
+  function tvCardView(c) {
+    const cat = c.cat === AFTERCARE_ID ? { name: 'אחרי', img: 'blanket' } : catOf(c.cat);
+    const to = c.to === 'B' ? 'לשניכם' : 'ל' + roleName(c.to);
+    const lashes = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((i) => `<i class="${i <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
+    const art = S.media[c.id] && S.media[c.id].kind === 'image' ? `<div class="tv-art media" data-media="${c.id}"></div>` : `<div class="tv-art">${illus(c.img || cat.img)}</div>`;
+    const prog = playMode === 'session' && S.session ? `${S.session.idx + 1} / ${S.session.cards.length}` : 'קלף אקראי';
+    return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">${prog}</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
+      <div class="tv-main">${art}
+        <div class="tv-text"><div class="tv-chips"><span class="chip to">${esc(to)}</span><span class="chip cat">${cat.name}</span>${lashes}</div>
+          <p class="tv-p">${render(c.text)}</p>${c.safe ? `<p class="tv-safe-note">⚠ ${esc(c.safe)}</p>` : ''}</div></div>
+      <div class="tv-bar">
+        <button class="tv-btn stop" data-tv="stop">עצור</button>
+        <button class="tv-btn primary" data-tv="next">${playMode === 'session' ? 'בוצע, הבא' : 'קלף אחר'}</button>
+        ${playMode === 'session' ? '<button class="tv-btn" data-tv="skip">דילוג</button>' : ''}
+        ${c.min ? `<button class="tv-btn" data-tv="timer" data-min="${c.min}">⏱ ${c.min} דק׳</button>` : ''}
+        <button class="tv-btn" data-tv="dice">קוביות</button>
+        <button class="tv-btn" data-tv="cast" ${'PresentationRequest' in window ? '' : 'hidden'}>${tvConn ? '📡 משודר' : '📡 Chromecast'}</button>
+        <button class="tv-btn" data-tv="exit">יציאה</button>
+      </div>`;
+  }
+  function tvDiceView() {
+    const sets = diceSets(), r = diceResult || { action: sets.action[0], body: sets.body[0], time: sets.time[0] };
+    return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">קוביות</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
+      <div class="tv-dice">${[['action', 'פעולה', r.action.img || 'hand'], ['body', 'איפה', 'figure'], ['time', 'כמה', 'stopwatch']].map(([k, l, img]) =>
+        `<div class="die ${rolling ? 'spin' : ''}">${illus(img)}<small>${l}</small><b>${esc(r[k].t)}</b></div>`).join('')}</div>
+      <p class="tv-sentence">${diceResult ? `<b>${roleName('D')}</b>: ${esc(r.action.t)} <b>${esc(r.body.t)}</b> של ${roleName('S')}, ${esc(r.time.t)}.` : 'לחצו ״גלגלו״.'}</p>
+      <div class="tv-bar">
+        <button class="tv-btn stop" data-tv="stop">עצור</button>
+        <button class="tv-btn primary" data-tv="roll">גלגלו</button>
+        ${diceResult && diceResult.time.sec ? `<button class="tv-btn" data-tv="timer" data-sec="${diceResult.time.sec}">⏱ ${esc(diceResult.time.t)}</button>` : ''}
+        <button class="tv-btn" data-tv="card">${S.session || randomCard ? 'חזרה לכרטיס' : 'קלף אקראי'}</button>
+        <button class="tv-btn" data-tv="exit">יציאה</button>
+      </div>`;
+  }
+  function tvEmptyView() {
+    return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
+      <div class="tv-empty">${illus('ring')}<h1>קטיפה</h1><p>${roleName('D')} ${S.partners[S.dom].g === 'm' ? 'מוביל' : 'מובילה'} · ${roleName('S')} ${S.partners[sub()].g === 'm' ? 'מובל' : 'מובלת'}</p></div>
+      <div class="tv-bar"><button class="tv-btn primary" data-tv="start">התחל ערב</button><button class="tv-btn" data-tv="random">קלף אקראי</button><button class="tv-btn" data-tv="dice">קוביות</button><button class="tv-btn" data-tv="exit">יציאה</button></div>`;
+  }
+  function renderTv() {
+    const stage = $('#tv-stage'); if (!stage) return;
+    let html;
+    if (tvView === 'dice') html = tvDiceView();
+    else {
+      const c = currentCard();
+      if (c) html = tvCardView(c);
+      else if (playMode === 'session' && S.session) { html = `<div class="tv-top"><span class="tv-brand">קטיפה</span></div><div class="tv-empty">${illus('heart')}<h1>זה היה הערב</h1><p>מים, שמיכה, ומילה טובה.</p></div><div class="tv-bar"><button class="tv-btn primary" data-tv="finish">סיום</button></div>`; }
+      else html = tvEmptyView();
+    }
+    stage.innerHTML = html;
+    hydrateCard(stage); timerDraw();
+    $$('[data-tv]', stage).forEach((b) => b.addEventListener('click', () => tvAction(b.dataset.tv, b)));
+    tvSend();
+  }
+  function tvAction(a, b) {
+    const c = currentCard();
+    if (a === 'exit') return exitTv();
+    if (a === 'stop') return openStop();
+    if (a === 'next') { if (playMode === 'session') sessionAdvance(); else pickRandom(); tvView = 'card'; return renderTv(); }
+    if (a === 'skip') { if (c) sessionSkip(c); return renderTv(); }
+    if (a === 'timer') { timerSet(b.dataset.sec ? +b.dataset.sec : +b.dataset.min * 60); timerStart(); return; }
+    if (a === 'dice') { tvView = 'dice'; return renderTv(); }
+    if (a === 'card') { if (!S.session && !randomCard) { playMode = 'random'; pickRandom(); } tvView = 'card'; return renderTv(); }
+    if (a === 'roll') { if (rolling) return; rolling = true; const sets = diceSets(), pick = (x) => x[Math.floor(Math.random() * x.length)]; let n = 0; const iv = setInterval(() => { diceResult = { action: pick(sets.action), body: pick(sets.body), time: pick(sets.time) }; if (++n >= 8) { clearInterval(iv); rolling = false; } renderTv(); }, 90); return; }
+    if (a === 'start') { if (S.roleMode === 'random') S.dom = Math.random() < 0.5 ? 'a' : 'b'; buildSession(); playMode = 'session'; tvView = 'card'; return renderTv(); }
+    if (a === 'random') { playMode = 'random'; pickRandom(); tvView = 'card'; return renderTv(); }
+    if (a === 'finish') { S.session = null; save(); return renderTv(); }
+    if (a === 'cast') return tvCast();
+  }
+  // שידור ל-Chromecast דרך Presentation API (Chrome באנדרואיד ובמחשב). המקלט הוא אותה אפליקציה עם ?tv=1.
+  async function tvCast() {
+    if (!('PresentationRequest' in window)) return;
+    if (tvConn) { dialog('<h2>שידור פעיל</h2>', [{ label: 'ניתוק', cls: 'danger', onClick: () => { try { tvConn.terminate(); } catch { /* */ } tvConn = null; renderTv(); } }, { label: 'סגירה' }]); return; }
+    try {
+      tvReq = tvReq || new PresentationRequest([TV_URL()]);
+      const conn = await tvReq.start();
+      tvConn = conn;
+      conn.addEventListener('connect', () => { renderTv(); });
+      conn.addEventListener('close', () => { tvConn = null; if (tvOn) renderTv(); });
+      conn.addEventListener('terminate', () => { tvConn = null; if (tvOn) renderTv(); });
+      renderTv();
+    } catch (e) { dialog(`<h2>לא הצלחתי לשדר</h2><p class="tiny">${esc(e.message || '')}</p><p>הדרך שעובדת בכל טלפון: שיקוף מסך (AirPlay באייפון, Smart View / Cast באנדרואיד) כשהטלפון במצב טלוויזיה ובאופק.</p>`, [{ label: 'סגירה' }]); }
+  }
+  async function tvSend() {
+    if (!tvConn || tvConn.state !== 'connected') return;
+    const stage = $('#tv-stage');
+    const used = {}; $$('use', stage).forEach((u) => { const id = (u.getAttribute('href') || '').slice(4); if (CUSTOM_ILLUS[id]) used[id] = CUSTOM_ILLUS[id]; });
+    const images = {};
+    for (const el of $$('[data-media]', stage)) { const img = $('img', el); if (img && img.src.startsWith('blob:')) { try { const b = await (await fetch(img.src)).blob(); if (b.size < 900e3) images[el.dataset.media] = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); } catch { /* */ } } }
+    const clone = stage.cloneNode(true);
+    $$('[data-media]', clone).forEach((el) => { const id = el.dataset.media; el.innerHTML = images[id] ? `<img src="${images[id]}" alt="">` : illus('camera'); });
+    $$('.tv-bar', clone).forEach((el) => el.remove());
+    try { tvConn.send(JSON.stringify({ html: clone.innerHTML, illus: used, timer: $('#tv-timer') ? $('#tv-timer').textContent : '' })); } catch { /* */ }
+  }
+  function tvReceiverInit() {
+    document.body.classList.add('tv-on', 'tv-receiver');
+    show('tv');
+    const stage = $('#tv-stage');
+    stage.innerHTML = `<div class="tv-empty">${illus('ring')}<h1>קטיפה</h1><p>ממתין לחיבור מהטלפון...</p></div>`;
+    const apply = (data) => {
+      try { const m = typeof data === 'string' ? JSON.parse(data) : data; Object.entries(m.illus || {}).forEach(([id, body]) => addCustomIllustration(id, body)); stage.innerHTML = m.html; const tt = $('#tv-timer'); if (tt) tt.textContent = m.timer || ''; } catch { /* */ }
+    };
+    window.__tvReceive = apply;
+    if (navigator.presentation && navigator.presentation.receiver) {
+      navigator.presentation.receiver.connectionList.then((list) => {
+        const attach = (conn) => { conn.addEventListener('message', (e) => apply(e.data)); conn.addEventListener('close', () => { stage.innerHTML = `<div class="tv-empty">${illus('ring')}<h1>קטיפה</h1><p>החיבור נסגר.</p></div>`; }); };
+        list.connections.forEach(attach);
+        list.addEventListener('connectionavailable', (e) => attach(e.connection));
+      });
+    }
+  }
+
   // ---------- אתחול ----------
   async function init() {
     $('#sprite').innerHTML = illustrationSprite();
     Object.entries(S.customIllus || {}).forEach(([id, body]) => addCustomIllustration(id, body));
     buildPad();
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+    if (isReceiver) return tvReceiverInit();
     if (S.pinHash) await unlockFlow();
     if (!S.setupDone) startSetup(0); else show('home');
   }

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.13.17';
+  const APP_VERSION = '2026.10.13.18';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -18,7 +18,7 @@
     media: {}, avatars: { a: false, b: false },
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
     ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
-    showSafety: false, eveningAlt: false,
+    showSafety: false, eveningAlt: false, vidPref: 'personal',
     customIllus: {},
   });
   let S = load();
@@ -396,7 +396,7 @@
     const art = mediaArtHtml(c, 'art') || `<div class="art">${illus(c.img || cat.img)}</div>`;
     return `<article class="card cat-${c.cat} ${big ? 'big' : ''}">
       <header><span class="chip to">${av}${esc(to)}</span><span class="chip cat">${cat.name}</span>${dots}</header>
-      ${art}
+      ${art}${big ? vidToggleHtml(S.media[c.id] || {}) : ''}
       <p class="text">${render(c.text)}</p>
       ${c.safe && S.showSafety ? `<p class="safe">⚠ ${esc(c.safe)}</p>` : ''}
       ${c.min ? `<button class="btn timer-btn" data-min="${c.min}">${illus('stopwatch')} ${c.min} דקות</button>` : ''}
@@ -421,6 +421,7 @@
     $('#play-lead').innerHTML = `${illus('key')} <b>${roleName('D')}</b> ${S.partners[S.dom].g === 'm' ? 'מוביל' : 'מובילה'}${alternating() ? ` <small>· הבא: ${roleName('S')}</small>` : ''}`;
     if (!c) { S.session = null; save(); return show('home'); }
     host.innerHTML = cardHtml(c); hydrateCard(host);
+    $$('[data-vp]', host).forEach((b) => b.addEventListener('click', () => { S.vidPref = b.dataset.vp; save(); renderPlay(); }));
     const fav = S.favorites.includes(c.id);
     const tools = `<div class="row gap tools">${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}<button class="btn ghost small" id="pa-tv">📺 טלוויזיה</button></div>`;
     acts.innerHTML = playMode === 'session'
@@ -577,8 +578,14 @@
         <div class="ed-main"><small>עוצמה ${c.lvl || 'אחרי'} · ${c.to === 'B' ? 'שניכם' : c.to === 'D' ? 'מוביל/ה' : 'מובל/ת'}${c.id.startsWith('u_') ? ' · שלנו' : ''}</small><p>${render(c.text)}</p>
           <div class="ed-media">
             <button class="mslot ${m.img ? 'on' : ''}" data-act="img">🖼 ${m.img ? 'תמונה ✓' : 'תמונה'}</button>
+          </div>
+          <div class="ed-media"><span class="mlabel">אישי</span>
             <button class="mslot ${m.vidA ? 'on' : ''}" data-act="vidA">🎬 ${leadLabel('a')}${m.vidA ? ' ✓' : ''}</button>
             <button class="mslot ${m.vidB ? 'on' : ''}" data-act="vidB">🎬 ${leadLabel('b')}${m.vidB ? ' ✓' : ''}</button>
+          </div>
+          <div class="ed-media"><span class="mlabel">הדגמה</span>
+            <button class="mslot ${m.demoA ? 'on' : ''}" data-act="demoA">🎬 ${leadLabel('a')}${m.demoA ? ' ✓' : ''}</button>
+            <button class="mslot ${m.demoB ? 'on' : ''}" data-act="demoB">🎬 ${leadLabel('b')}${m.demoB ? ' ✓' : ''}</button>
           </div></div>
         <div class="ed-btns">
           <button class="icon ${fav ? 'on' : ''}" data-act="fav" title="מועדף">${fav ? '★' : '☆'}</button>
@@ -599,8 +606,8 @@
       if (act === 'fav') toggleIn(S.favorites, id);
       if (act === 'hide') toggleIn(S.hidden, id);
       if (act === 'edit') return openCardForm(cardById(id));
-      if (act === 'img' || act === 'vidA' || act === 'vidB') return mediaSlotDialog(id, act, renderEditor);
-      if (act === 'del') return dialog('<h2>למחוק את הכרטיס?</h2>', [{ label: 'מחיקה', cls: 'danger', onClick: () => { S.custom = S.custom.filter((c) => c.id !== id); ['img', 'vidA', 'vidB'].forEach((k) => Media.removeFile(mediaKey(id, k))); delete S.media[id]; save(); renderEditor(); } }, { label: 'ביטול' }]);
+      if (act === 'img' || ALL_VID_SLOTS.includes(act)) return mediaSlotDialog(id, act, renderEditor);
+      if (act === 'del') return dialog('<h2>למחוק את הכרטיס?</h2>', [{ label: 'מחיקה', cls: 'danger', onClick: () => { S.custom = S.custom.filter((c) => c.id !== id); ['img'].concat(ALL_VID_SLOTS).forEach((k) => Media.removeFile(mediaKey(id, k))); delete S.media[id]; save(); renderEditor(); } }, { label: 'ביטול' }]);
       save(); renderEditor();
     })));
   }
@@ -646,11 +653,26 @@
   }
   // מדיה לכל כרטיס: חריץ תמונה (img) וחריץ סרטון (vid). שניהם מוצגים אם שניהם קיימים.
   const mediaKey = (cardId, slot) => `${cardId}:${slot}`;
-  // חריצי סרטון לפי מי מוביל: vidA כשבן/בת זוג א׳ מוביל/ה, vidB כשב׳. מציגים את המתאים, ואם אין, את השני.
-  const VID_SLOTS = ['vidA', 'vidB'];
-  const hasMedia = (cardId) => { const m = S.media[cardId]; return !!(m && (m.img || m.vidA || m.vidB)); };
-  const vidSlotFor = (who) => (who === 'a' ? 'vidA' : 'vidB');
-  function activeVidSlot(m) { const pref = vidSlotFor(S.dom), other = pref === 'vidA' ? 'vidB' : 'vidA'; return m[pref] ? pref : (m[other] ? other : null); }
+  // סרטונים: שני סוגים (אישי = vidA/vidB, הדגמה = demoA/demoB), לכל סוג סרטון לפי מי מוביל (A או B).
+  // מציגים את הסוג המועדף אם קיים, ובתוכו את הסרטון של מי שמוביל, ואם אין – את של השני.
+  const VID_TYPES = { personal: ['vidA', 'vidB'], demo: ['demoA', 'demoB'] };
+  const ALL_VID_SLOTS = ['vidA', 'vidB', 'demoA', 'demoB'];
+  const hasMedia = (cardId) => { const m = S.media[cardId]; return !!(m && (m.img || ALL_VID_SLOTS.some((k) => m[k]))); };
+  const vidSlotFor = (who, type = 'personal') => VID_TYPES[type][who === 'a' ? 0 : 1];
+  const slotType = (slot) => (slot.startsWith('demo') ? 'demo' : 'personal');
+  const slotWho = (slot) => (slot.endsWith('A') ? 'a' : 'b');
+  const typeAvailable = (m, type) => VID_TYPES[type].some((k) => m[k]);
+  function activeVidType(m) { const pref = S.vidPref || 'personal', other = pref === 'personal' ? 'demo' : 'personal'; return typeAvailable(m, pref) ? pref : (typeAvailable(m, other) ? other : null); }
+  function activeVidSlot(m) {
+    const type = activeVidType(m); if (!type) return null;
+    const pref = vidSlotFor(S.dom, type), other = VID_TYPES[type].find((k) => k !== pref);
+    return m[pref] ? pref : (m[other] ? other : null);
+  }
+  function vidToggleHtml(m, cls = 'vid-toggle') {
+    if (!(typeAvailable(m, 'personal') && typeAvailable(m, 'demo'))) return '';
+    const t = activeVidType(m);
+    return `<div class="seg ${cls}"><button type="button" data-vp="personal" class="${t === 'personal' ? 'on' : ''}">סרטון אישי</button><button type="button" data-vp="demo" class="${t === 'demo' ? 'on' : ''}">הדגמה</button></div>`;
+  }
   function mediaArtHtml(c, cls = 'art') {
     const m = S.media[c.id] || {};
     const v = activeVidSlot(m);
@@ -681,7 +703,8 @@
   $('#lightbox').addEventListener('click', () => { $('#lightbox').hidden = true; });
   async function mediaSlotDialog(cardId, slot, onChange) {
     const key = mediaKey(cardId, slot), isVid = slot !== 'img';
-    const who = slot === 'vidA' ? 'a' : 'b', leadName = isVid ? `${S.partners[who].name || (who === 'a' ? 'א׳' : 'ב׳')} ${S.partners[who].g === 'm' ? 'מוביל' : 'מובילה'}` : '';
+    const who = isVid ? slotWho(slot) : 'a', leadName = isVid ? `${S.partners[who].name || (who === 'a' ? 'א׳' : 'ב׳')} ${S.partners[who].g === 'm' ? 'מוביל' : 'מובילה'}` : '';
+    const typeName = isVid ? (slotType(slot) === 'demo' ? 'הדגמה' : 'סרטון אישי') : '';
     const cur = (S.media[cardId] || {})[slot];
     const rec = cur ? await Media.getFile(key) : null;
     let prev = '';
@@ -697,10 +720,10 @@
       } catch (e) { dialog('<h2>לא נשמר</h2><p>אולי אין מספיק מקום במכשיר. נסו קובץ קטן יותר.</p>', [{ label: 'סגירה' }]); }
     };
     const card = cardById(cardId);
-    dialog(`<h2>${isVid ? '🎬 סרטון כש' + esc(leadName) : '🖼 תמונה'} לכרטיס</h2><p class="muted tiny">${card ? plainText(card).slice(0, 90) : ''}…</p>${prev}
+    dialog(`<h2>${isVid ? '🎬 ' + typeName + ' כש' + esc(leadName) : '🖼 תמונה'}</h2><p class="muted tiny">${card ? plainText(card).slice(0, 90) : ''}…</p>${prev}
       <p class="muted tiny">${isVid ? 'עדיף עד דקה, בפורמט שהטלפון מצלם. מתנגן אוטומטית בלי קול, אפשר להדליק.' : 'מוקטנת אוטומטית ל-1600 פיקסל.'} ${isVid ? ' מוצג כשזה מי שמוביל/ה; אם אין סרטון לצד השני, מוצג הזה.' : ''} אם יש גם תמונה וגם סרטון, שניהם יופיעו בכרטיס. נשמר רק במכשיר הזה.</p>`, [
       { label: cur ? (isVid ? 'החלפת הסרטון' : 'החלפת התמונה') : (isVid ? 'בחירת סרטון' : 'בחירת תמונה'), cls: 'primary', onClick: () => { doPick(); return true; } },
-      ...(cur ? [{ label: 'הסרה', cls: 'danger', onClick: () => { Media.removeFile(key).then(() => { const m = S.media[cardId] || {}; delete m[slot]; if (!m.img && !m.vidA && !m.vidB) delete S.media[cardId]; else S.media[cardId] = m; save(); onChange && onChange(); }); } }] : []),
+      ...(cur ? [{ label: 'הסרה', cls: 'danger', onClick: () => { Media.removeFile(key).then(() => { const m = S.media[cardId] || {}; delete m[slot]; if (!m.img && !ALL_VID_SLOTS.some((k) => m[k])) delete S.media[cardId]; else S.media[cardId] = m; save(); onChange && onChange(); }); } }] : []),
       { label: 'סגירה' },
     ]);
   }
@@ -928,6 +951,7 @@ EXAMPLE corset:
         <button class="tv-btn primary" data-tv="next">${playMode === 'session' ? 'בוצע, הבא' : 'קלף אחר'}</button>
         ${playMode === 'session' ? '<button class="tv-btn" data-tv="skip">דילוג</button>' : ''}
         ${c.min ? `<button class="tv-btn" data-tv="timer" data-min="${c.min}">⏱ ${c.min} דק׳</button>` : ''}
+        ${typeAvailable(S.media[c.id] || {}, 'personal') && typeAvailable(S.media[c.id] || {}, 'demo') ? `<button class="tv-btn" data-tv="vidpref">${activeVidType(S.media[c.id] || {}) === 'personal' ? 'להדגמה' : 'לסרטון האישי'}</button>` : ''}
         <button class="tv-btn" data-tv="dice">קוביות</button>
         <button class="tv-btn" data-tv="cast" ${'PresentationRequest' in window ? '' : 'hidden'}>${tvConn ? '📡 משודר' : '📡 Chromecast'}</button>
         <button class="tv-btn" data-tv="exit">יציאה</button>
@@ -981,6 +1005,7 @@ EXAMPLE corset:
     if (a === 'random') { playMode = 'random'; pickRandom(); tvView = 'card'; return renderTv(); }
     if (a === 'finish') { S.session = null; save(); return renderTv(); }
     if (a === 'cast') return tvCast();
+    if (a === 'vidpref') { S.vidPref = (S.vidPref || 'personal') === 'personal' ? 'demo' : 'personal'; save(); return renderTv(); }
   }
   // שידור ל-Chromecast דרך Presentation API (Chrome באנדרואיד ובמחשב). המקלט הוא אותה אפליקציה עם ?tv=1.
   async function tvCast() {

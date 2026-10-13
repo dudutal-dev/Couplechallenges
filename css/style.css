@@ -350,3 +350,8 @@ body.tv-receiver #scr-tv::after{display:none}
 .draw{display:flex;flex-direction:column;gap:10px;margin:14px 0 6px}
 .draw-row{display:flex;align-items:center;justify-content:center;gap:10px;font-size:1.15rem;padding:12px;border:1px solid var(--line2);border-radius:14px;background:#0006}
 .draw-row .il{width:1.6em;height:1.6em}
+
+.ed-media{align-items:center}
+.mlabel{font-size:.78rem;color:var(--gold);min-width:3.2em}
+.vid-toggle{margin:0 6px 6px;max-width:260px}
+.vid-toggle button{padding:6px}

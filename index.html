@@ -111,9 +111,11 @@
     <label class="menu-item toggle"><svg class="il"><use href="#il-gear"/></svg><span>לכלול קטגוריות שסומנו ״אולי״</span><input type="checkbox" id="opt-maybe"></label>
     <label class="menu-item toggle"><svg class="il"><use href="#il-stop"/></svg><span>הערות בטיחות על הכרטיסים</span><input type="checkbox" id="opt-safety"></label>
     <button class="menu-item" data-go="safety"><svg class="il"><use href="#il-stop"/></svg><span>בטיחות: מה כן ומה בשום אופן לא</span></button>
+    <button class="menu-item" id="btn-refresh"><svg class="il"><use href="#il-gear"/></svg><span>רענון לגרסה החדשה (בלי למחוק כלום)</span></button>
     <button class="menu-item danger" id="btn-wipe"><svg class="il"><use href="#il-flame"/></svg><span>מחיקת כל הנתונים</span></button>
   </div>
   <p class="muted tiny">הכול נשמר במכשיר הזה בלבד. שום דבר לא נשלח לשום מקום.</p>
+  <p class="muted tiny center" id="app-version"></p>
 </section>
 
 <!-- עורך חפיסה -->
@@ -221,6 +223,9 @@
 
 <!-- תמונה במסך מלא -->
 <div class="overlay lightbox" id="lightbox" hidden><img alt=""></div>
+
+<!-- גרסה חדשה -->
+<div class="update-bar" id="update-bar" hidden><span>גרסה חדשה ירדה</span><button class="btn primary small">רענון</button></div>
 
 <!-- עצור (שכבה) -->
 <div class="overlay" id="stop-overlay" hidden>

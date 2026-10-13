@@ -334,3 +334,6 @@ body.tv-receiver #scr-tv::after{display:none}
 .tv-art.media.both .m-img{aspect-ratio:4/3;max-height:30cqh}
 .tv-art.media.both .m-vid{aspect-ratio:16/9;max-height:26cqh}
 .tv-art.media:not(.both) > div{width:100%;height:100%}
+
+/* פס עדכון */
+.update-bar{position:fixed;left:12px;right:12px;bottom:calc(84px + var(--safe-b));z-index:40;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:14px;background:linear-gradient(165deg,#22101a,#0c0608);border:1px solid var(--gold-dim);box-shadow:0 10px 30px #000a;animation:fade .3s}

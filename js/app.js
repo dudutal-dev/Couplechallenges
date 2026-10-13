@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
+  const APP_VERSION = '2026.10.13.13';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1001,13 +1002,35 @@ EXAMPLE corset:
     }
   }
 
+  // ---------- עדכון גרסה בלי להסיר את האפליקציה ----------
+  const ASSETS = ['index.html', 'css/style.css', 'js/app.js', 'js/cards-data.js', 'js/illustrations.js', 'js/media.js', 'manifest.webmanifest', 'sw.js'];
+  async function hardRefresh() {
+    dialog('<h2>מרענן...</h2><p class="muted">מוריד את הגרסה החדשה. ההגדרות, התמונות והסרטונים נשארים.</p>', []);
+    try {
+      if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); }
+      if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); }
+      await Promise.all(ASSETS.map((a) => fetch(a, { cache: 'reload' }).catch(() => null)));
+    } catch { /* ממשיכים לרענון בכל מקרה */ }
+    location.replace(location.pathname + '?r=' + Date.now());
+  }
+  $('#btn-refresh').addEventListener('click', hardRefresh);
+  $('#update-bar button').addEventListener('click', hardRefresh);
+  function watchUpdates(reg) {
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('#update-bar').hidden = false; });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+  }
+
   // ---------- אתחול ----------
   async function init() {
     $('#sprite').innerHTML = illustrationSprite();
     Object.entries(S.customIllus || {}).forEach(([id, body]) => addCustomIllustration(id, body));
     buildPad();
     if (Object.values(S.media).some((m) => m && (m.kind || m.vid))) await migrateMedia();
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+    $('#app-version').textContent = 'גרסה ' + APP_VERSION;
+    if (location.search.includes('r=')) history.replaceState(null, '', location.pathname);
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').then(watchUpdates).catch(() => {});
     if (isReceiver) return tvReceiverInit();
     if (S.pinHash) await unlockFlow();
     if (!S.setupDone) startSetup(0); else show('home');

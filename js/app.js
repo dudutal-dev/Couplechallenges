@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.14.21';
+  const APP_VERSION = '2026.10.14.22';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1097,11 +1097,11 @@ EXAMPLE corset:
   }
   // ל/ב/כ לפני ה׳ הידיעה בולעות אותה: "להגבר" -> "לגבר", "באשה" ולא "בהאשה"
   const fixHe = (t) => t.replace(/(^|[\s״"'(,.:;!?-])([לבכ])ה(גבר|אשה)/g, '$1$2$3');
-  const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic scene. The two adult characters exactly as in the attached reference image (keep faces, hair, bodies and skin tone identical; the man and the woman from the reference). Do not describe, add or change any clothing. Dark bedroom at night, candlelight and one warm lamp, deep red velvet and brass details, 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
+  const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic scene. The two adult characters exactly as in the attached reference image (keep faces, hair, bodies and skin tone identical; the man and the woman from the reference). Dark bedroom at night, candlelight and one warm lamp, deep red velvet and brass details, 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
   const DEFAULT_PROMPT_VIDEO = '10 second video, one continuous shot: slow push-in on a gimbal, candle flicker on skin, shallow focus, natural breathing and real continuous movement that performs the scene from start to finish, no cuts, no text.';
   function buildPrompt(c, v, kind) {
     const e = entryText(c, v);
-    const roles = v.key === 'm' ? 'The man (reference 1) leads; the woman (reference 2) is led.' : 'The woman (reference 2) leads; the man (reference 1) is led.';
+    const roles = v.key === 'm' ? 'The man from the reference image leads; the woman is led.' : 'The woman from the reference image leads; the man is led.';
     const style = (S.promptStyle || DEFAULT_PROMPT_STYLE).trim();
     const video = kind === 'video' ? ' ' + (S.promptVideo || DEFAULT_PROMPT_VIDEO).trim() : '';
     return `${style}${video}\n${roles}\nScene (Hebrew task text, follow it literally): ${e.text}`;

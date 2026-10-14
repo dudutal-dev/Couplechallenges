@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.14.19';
+  const APP_VERSION = '2026.10.14.20';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,6 +19,7 @@
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
     ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
     showSafety: false, eveningAlt: false, vidPref: 'personal',
+    promptStyle: '', promptVideo: '',
     customIllus: {},
   });
   let S = load();
@@ -1096,6 +1097,15 @@ EXAMPLE corset:
   }
   // ל/ב/כ לפני ה׳ הידיעה בולעות אותה: "להגבר" -> "לגבר", "באשה" ולא "בהאשה"
   const fixHe = (t) => t.replace(/(^|[\s״"'(,.:;!?-])([לבכ])ה(גבר|אשה)/g, '$1$2$3');
+  const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic still. Two adult characters exactly as in the attached reference images (keep faces, hair, bodies and skin tone identical; reference 1 = the man, reference 2 = the woman). Dark bedroom at night, candlelight and one warm lamp, black latex sheets and deep red velvet, brass and leather details, 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
+  const DEFAULT_PROMPT_VIDEO = 'Cinematic 5 second clip in the same look: slow push-in, candle flicker on skin, shallow focus, natural breathing and small real movements, no cuts, no text.';
+  function buildPrompt(c, v, kind) {
+    const e = entryText(c, v);
+    const roles = v.key === 'm' ? 'The man (reference 1) leads; the woman (reference 2) is led.' : 'The woman (reference 2) leads; the man (reference 1) is led.';
+    const style = (S.promptStyle || DEFAULT_PROMPT_STYLE).trim();
+    const video = kind === 'video' ? ' ' + (S.promptVideo || DEFAULT_PROMPT_VIDEO).trim() : '';
+    return `${style}${video}\n${roles}\nScene (Hebrew task text, follow it literally): ${e.text}`;
+  }
   function entryText(c, v) { const who = c.to === 'B' ? 'לשניהם' : fixHe('ל' + (c.to === 'D' ? v.ctx.D : v.ctx.S)); return { who, text: fixHe(toPlain(render(c.text, v.ctx))) }; }
   function renderCopyList() {
     const host = $('#list-body');
@@ -1105,7 +1115,7 @@ EXAMPLE corset:
       const lines = [];
       const rows = cards.map((c, i) => COPY_CTX.map((v) => {
         const e = entryText(c, v); const line = `${e.text}`; lines.push(line); all.push(line);
-        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button></div>`;
+        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p><div class="cp-actions"><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button><button class="btn ghost small cp-btn" data-prompt="image" data-id="${c.id}" data-v="${v.key}">פרומפט תמונה</button><button class="btn ghost small cp-btn" data-prompt="video" data-id="${c.id}" data-v="${v.key}">פרומפט סרטון</button></div></div>`;
       }).join('')).join('');
       return `<section class="cp-group"><div class="cp-group-head">${illus(cat.img)}<h2>${cat.name}</h2><small>${cards.length} משימות × 2</small><button class="btn ghost small" data-copy-all="${esc(lines.join('\n\n'))}">העתקת הקטגוריה</button></div>${rows}</section>`;
     }).join('');
@@ -1113,6 +1123,13 @@ EXAMPLE corset:
     $('#list-copy-all').onclick = (e) => copyText(all.join('\n\n'), e.currentTarget);
     $$('[data-copy]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copy, b)));
     $$('[data-copy-all]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copyAll, b)));
+    $$('[data-prompt]', host).forEach((b) => b.addEventListener('click', () => { const c = cardById(b.dataset.id), v = COPY_CTX.find((x) => x.key === b.dataset.v); if (c && v) copyText(buildPrompt(c, v, b.dataset.prompt), b); }));
+    // הגדרות הפרומפט
+    $('#prompt-style').value = S.promptStyle || DEFAULT_PROMPT_STYLE;
+    $('#prompt-video').value = S.promptVideo || DEFAULT_PROMPT_VIDEO;
+    $('#prompt-style').oninput = (e) => { S.promptStyle = e.target.value; save(); };
+    $('#prompt-video').oninput = (e) => { S.promptVideo = e.target.value; save(); };
+    $('#prompt-reset').onclick = () => { S.promptStyle = ''; S.promptVideo = ''; save(); renderCopyList(); };
   }
 
   // ---------- אתחול ----------

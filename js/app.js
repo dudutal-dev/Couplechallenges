@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.14.22';
+  const APP_VERSION = '2026.10.14.23';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -698,11 +698,26 @@
       const rec = await Media.getFile(el.dataset.media);
       if (!rec || !rec.blob) { el.innerHTML = illus('camera'); continue; }
       const u = URL.createObjectURL(rec.blob); liveUrls.push(u);
-      if (rec.kind === 'video') el.innerHTML = `<video src="${u}" playsinline controls loop muted autoplay preload="metadata"></video>`;
-      else { el.innerHTML = `<img src="${u}" alt="">`; $('img', el).addEventListener('click', () => { $('#lightbox img').src = u; $('#lightbox').hidden = false; }); }
+      if (rec.kind === 'video') {
+        el.innerHTML = `<video src="${u}" playsinline controls loop muted autoplay preload="metadata"></video><button type="button" class="vid-expand" title="הגדלה">⛶</button>`;
+        $('.vid-expand', el).addEventListener('click', (ev) => { ev.stopPropagation(); videoFullscreen($('video', el), u); });
+      } else { el.innerHTML = `<img src="${u}" alt="">`; $('img', el).addEventListener('click', () => { const lb = $('#lightbox'); lb.innerHTML = `<img src="${u}" alt="">`; lb.hidden = false; }); }
     }
   }
-  $('#lightbox').addEventListener('click', () => { $('#lightbox').hidden = true; });
+  function videoFullscreen(v, url) {
+    if (tvOn) { tvVideoFull = true; renderTv(); return; }
+    try {
+      if (v.webkitEnterFullscreen) { v.webkitEnterFullscreen(); return; } // אייפון: נגן מסך מלא מקורי
+      if (v.requestFullscreen) { v.requestFullscreen().then(() => v.play().catch(() => {})).catch(() => lightboxVideo(url)); return; }
+    } catch { /* נופלים ל-lightbox */ }
+    lightboxVideo(url);
+  }
+  function lightboxVideo(url) {
+    const lb = $('#lightbox'); lb.innerHTML = `<video src="${url}" playsinline controls autoplay loop></video><button class="btn stop small lb-close">סגירה</button>`;
+    lb.hidden = false; $('.lb-close', lb).addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
+  }
+  function closeLightbox() { const lb = $('#lightbox'); lb.hidden = true; lb.innerHTML = '<img alt="">'; }
+  $('#lightbox').addEventListener('click', (e) => { if (e.target.tagName === 'VIDEO' || e.target.classList.contains('lb-close')) return; closeLightbox(); });
   async function mediaSlotDialog(cardId, slot, onChange) {
     const key = mediaKey(cardId, slot), isVid = slot !== 'img';
     const who = isVid ? slotWho(slot) : 'a', leadName = isVid ? `${S.partners[who].name || (who === 'a' ? 'א׳' : 'ב׳')} ${S.partners[who].g === 'm' ? 'מוביל' : 'מובילה'}` : '';
@@ -922,7 +937,7 @@ EXAMPLE corset:
   }
 
   // ---------- טלוויזיה: במה 16:9 לשיקוף מסך, ושידור Presentation API ----------
-  let tvOn = false, tvView = 'card', tvConn = null, tvReq = null;
+  let tvOn = false, tvView = 'card', tvConn = null, tvReq = null, tvVideoFull = false;
   const TV_URL = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html?tv=1';
   const isReceiver = new URLSearchParams(location.search).get('tv') === '1';
   async function enterTv() {
@@ -954,6 +969,7 @@ EXAMPLE corset:
         ${playMode === 'session' ? '<button class="tv-btn" data-tv="skip">דילוג</button>' : ''}
         ${c.min ? `<button class="tv-btn" data-tv="timer" data-min="${c.min}">⏱ ${c.min} דק׳</button>` : ''}
         ${typeAvailable(S.media[c.id] || {}, 'personal') && typeAvailable(S.media[c.id] || {}, 'demo') ? `<button class="tv-btn" data-tv="vidpref">${activeVidType(S.media[c.id] || {}) === 'personal' ? 'להדגמה' : 'לסרטון האישי'}</button>` : ''}
+        ${activeVidSlot(S.media[c.id] || {}) ? `<button class="tv-btn" data-tv="vfull">${tvVideoFull ? 'חזרה לכרטיס' : '⛶ סרטון במסך מלא'}</button>` : ''}
         <button class="tv-btn" data-tv="dice">קוביות</button>
         <button class="tv-btn" data-tv="cast" ${'PresentationRequest' in window ? '' : 'hidden'}>${tvConn ? '📡 משודר' : '📡 Chromecast'}</button>
         <button class="tv-btn" data-tv="exit">יציאה</button>
@@ -989,7 +1005,9 @@ EXAMPLE corset:
       else html = tvEmptyView();
     }
     stage.innerHTML = html;
-    hydrateCard(stage); timerDraw();
+    stage.classList.toggle('vfull', tvVideoFull && tvView === 'card' && !!$('.tv-art.media', stage));
+    hydrateCard(stage).then(() => { if (stage.classList.contains('vfull')) { const v = $('.tv-art.media video', stage); if (v) { v.muted = true; v.play().catch(() => {}); } } });
+    timerDraw();
     $$('[data-tv]', stage).forEach((b) => b.addEventListener('click', () => tvAction(b.dataset.tv, b)));
     tvSend();
   }
@@ -1007,6 +1025,7 @@ EXAMPLE corset:
     if (a === 'random') { playMode = 'random'; pickRandom(); tvView = 'card'; return renderTv(); }
     if (a === 'finish') { S.session = null; save(); return renderTv(); }
     if (a === 'cast') return tvCast();
+    if (a === 'vfull') { tvVideoFull = !tvVideoFull; return renderTv(); }
     if (a === 'vidpref') { S.vidPref = (S.vidPref || 'personal') === 'personal' ? 'demo' : 'personal'; save(); return renderTv(); }
   }
   // שידור ל-Chromecast דרך Presentation API (Chrome באנדרואיד ובמחשב). המקלט הוא אותה אפליקציה עם ?tv=1.

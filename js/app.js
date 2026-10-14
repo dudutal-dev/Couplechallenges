@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.14.20';
+  const APP_VERSION = '2026.10.14.21';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1097,8 +1097,8 @@ EXAMPLE corset:
   }
   // ל/ב/כ לפני ה׳ הידיעה בולעות אותה: "להגבר" -> "לגבר", "באשה" ולא "בהאשה"
   const fixHe = (t) => t.replace(/(^|[\s״"'(,.:;!?-])([לבכ])ה(גבר|אשה)/g, '$1$2$3');
-  const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic still. Two adult characters exactly as in the attached reference images (keep faces, hair, bodies and skin tone identical; reference 1 = the man, reference 2 = the woman). Dark bedroom at night, candlelight and one warm lamp, black latex sheets and deep red velvet, brass and leather details, 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
-  const DEFAULT_PROMPT_VIDEO = 'Cinematic 5 second clip in the same look: slow push-in, candle flicker on skin, shallow focus, natural breathing and small real movements, no cuts, no text.';
+  const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic scene. The two adult characters exactly as in the attached reference image (keep faces, hair, bodies and skin tone identical; the man and the woman from the reference). Do not describe, add or change any clothing. Dark bedroom at night, candlelight and one warm lamp, deep red velvet and brass details, 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
+  const DEFAULT_PROMPT_VIDEO = '10 second video, one continuous shot: slow push-in on a gimbal, candle flicker on skin, shallow focus, natural breathing and real continuous movement that performs the scene from start to finish, no cuts, no text.';
   function buildPrompt(c, v, kind) {
     const e = entryText(c, v);
     const roles = v.key === 'm' ? 'The man (reference 1) leads; the woman (reference 2) is led.' : 'The woman (reference 2) leads; the man (reference 1) is led.';
@@ -1121,6 +1121,13 @@ EXAMPLE corset:
     }).join('');
     $('#list-count').textContent = `${all.length / 2} משימות, ${all.length} נוסחים`;
     $('#list-copy-all').onclick = (e) => copyText(all.join('\n\n'), e.currentTarget);
+    const allPrompts = (kind) => groups.flatMap(({ cat, cards }) => cards.flatMap((c) => COPY_CTX.map((v) => `### ${cat.name} · ${v.label}\n${buildPrompt(c, v, kind)}`))).join('\n\n');
+    $('#list-copy-videos').onclick = (e) => copyText(allPrompts('video'), e.currentTarget);
+    $('#list-download').onclick = () => {
+      const txt = `קטיפה – פרומפטים לסרטונים (${new Date().toLocaleDateString('he-IL')})\n\n` + allPrompts('video');
+      const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' }); const u = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = u; a.download = 'ktifa-video-prompts.txt'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 2000);
+    };
     $$('[data-copy]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copy, b)));
     $$('[data-copy-all]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copyAll, b)));
     $$('[data-prompt]', host).forEach((b) => b.addEventListener('click', () => { const c = cardById(b.dataset.id), v = COPY_CTX.find((x) => x.key === b.dataset.v); if (c && v) copyText(buildPrompt(c, v, b.dataset.prompt), b); }));

@@ -102,6 +102,7 @@
   <div class="menu">
     <button class="menu-item" data-go="random"><svg class="il"><use href="#il-dice"/></svg><span>קלף אקראי</span></button>
     <button class="menu-item" data-go="editor"><svg class="il"><use href="#il-marker"/></svg><span>כל המשימות לפי קטגוריות: תמונות, סרטונים, הוספה</span></button>
+    <button class="menu-item" data-go="list"><svg class="il"><use href="#il-speech"/></svg><span>כל המשימות להעתקה: הגבר מוביל / האשה מובילה</span></button>
     <button class="menu-item" data-go="limits"><svg class="il"><use href="#il-chain"/></svg><span>גבולות ועוצמה</span></button>
     <button class="menu-item" data-go="partners"><svg class="il"><use href="#il-heart"/></svg><span>שמות, תפקידים ומילת עצירה</span></button>
     <button class="menu-item" data-go="tv"><svg class="il"><use href="#il-camera"/></svg><span>קאסט לטלוויזיה (מצב 16:9)</span></button>
@@ -207,6 +208,17 @@
     <h1>הקראה</h1>
   </header>
   <div id="tts-body"></div>
+</section>
+
+<!-- רשימה להעתקה -->
+<section class="screen" id="scr-list" hidden>
+  <header class="top row">
+    <button class="btn back" data-go="more">‹ עוד</button>
+    <h1>להעתקה</h1>
+    <button class="btn primary small" id="list-copy-all">העתקת הכול</button>
+  </header>
+  <p class="muted tiny">כל משימה פעמיים: פעם ״הגבר מוביל״ ופעם ״האשה מובילה״, בלי שמות. לחיצה על ״העתקה״ מעתיקה את הנוסח ללוח. <span id="list-count"></span></p>
+  <div id="list-body"></div>
 </section>
 
 <!-- טלוויזיה: במה 16:9 -->

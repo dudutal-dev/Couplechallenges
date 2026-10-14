@@ -355,3 +355,16 @@ body.tv-receiver #scr-tv::after{display:none}
 .mlabel{font-size:.78rem;color:var(--gold);min-width:3.2em}
 .vid-toggle{margin:0 6px 6px;max-width:260px}
 .vid-toggle button{padding:6px}
+
+/* רשימה להעתקה */
+.cp-group{margin:14px 0 20px}
+.cp-group-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.cp-group-head h2{margin:0;flex:1}
+.cp-group-head .il{width:1.8em;height:1.8em}
+.cp-group-head small{color:var(--muted)}
+.cp-row{background:#0006;border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:8px}
+.cp-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.cp-head small{color:var(--muted);font-size:.78rem}
+.cp-row p{margin:0 0 8px;font-size:.98rem;line-height:1.5}
+.cp-btn{padding:6px 12px}
+.cp-btn.on{border-color:var(--ok);color:var(--ok)}

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.13.18';
+  const APP_VERSION = '2026.10.14.19';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -71,7 +71,7 @@
   }
 
   // ---------- ניווט ----------
-  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts', 'ai', 'tv'];
+  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts', 'ai', 'tv', 'list'];
   const TABS = { home: 'home', random: 'play', dice: 'dice', timer: 'timer', more: 'more' };
   let current = 'home';
   function show(name) {
@@ -88,6 +88,7 @@
     if (name === 'dice') renderDice(false);
     if (name === 'tts') renderTts();
     if (name === 'ai') renderAi();
+    if (name === 'list') renderCopyList();
   }
   $$('#tabbar button').forEach((b) => b.addEventListener('click', () => {
     const t = b.dataset.tab;
@@ -1075,6 +1076,43 @@ EXAMPLE corset:
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('#update-bar').hidden = false; });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { reg.update().catch(() => {}); checkServerVersion(); } });
     setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+  }
+
+  // ---------- רשימת כל המשימות להעתקה: כל משימה פעמיים, הגבר מוביל / האשה מובילה ----------
+  const COPY_CTX = [
+    { key: 'm', label: 'הגבר מוביל', ctx: { D: 'הגבר', S: 'האשה', dg: 'm', sg: 'f' } },
+    { key: 'f', label: 'האשה מובילה', ctx: { D: 'האשה', S: 'הגבר', dg: 'f', sg: 'm' } },
+  ];
+  const toPlain = (html) => { const d = document.createElement('div'); d.innerHTML = html; return d.textContent; };
+  function copyText(text, btn) {
+    const done = () => { if (btn) { const t = btn.textContent; btn.textContent = 'הועתק ✓'; btn.classList.add('on'); setTimeout(() => { btn.textContent = t; btn.classList.remove('on'); }, 1200); } };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    else fallbackCopy(text, done);
+  }
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch { dialog(`<h2>העתקה ידנית</h2><textarea rows="6" style="width:100%">${esc(text)}</textarea>`, [{ label: 'סגירה' }]); }
+    ta.remove();
+  }
+  // ל/ב/כ לפני ה׳ הידיעה בולעות אותה: "להגבר" -> "לגבר", "באשה" ולא "בהאשה"
+  const fixHe = (t) => t.replace(/(^|[\s״"'(,.:;!?-])([לבכ])ה(גבר|אשה)/g, '$1$2$3');
+  function entryText(c, v) { const who = c.to === 'B' ? 'לשניהם' : fixHe('ל' + (c.to === 'D' ? v.ctx.D : v.ctx.S)); return { who, text: fixHe(toPlain(render(c.text, v.ctx))) }; }
+  function renderCopyList() {
+    const host = $('#list-body');
+    const groups = CATEGORIES.concat([{ id: AFTERCARE_ID, name: 'אחרי', img: 'blanket' }]).map((cat) => ({ cat, cards: allCards().filter((c) => c.cat === cat.id) })).filter((g) => g.cards.length);
+    const all = [];
+    host.innerHTML = groups.map(({ cat, cards }) => {
+      const lines = [];
+      const rows = cards.map((c, i) => COPY_CTX.map((v) => {
+        const e = entryText(c, v); const line = `${e.text}`; lines.push(line); all.push(line);
+        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button></div>`;
+      }).join('')).join('');
+      return `<section class="cp-group"><div class="cp-group-head">${illus(cat.img)}<h2>${cat.name}</h2><small>${cards.length} משימות × 2</small><button class="btn ghost small" data-copy-all="${esc(lines.join('\n\n'))}">העתקת הקטגוריה</button></div>${rows}</section>`;
+    }).join('');
+    $('#list-count').textContent = `${all.length / 2} משימות, ${all.length} נוסחים`;
+    $('#list-copy-all').onclick = (e) => copyText(all.join('\n\n'), e.currentTarget);
+    $$('[data-copy]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copy, b)));
+    $$('[data-copy-all]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copyAll, b)));
   }
 
   // ---------- אתחול ----------

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.41';
+  const APP_VERSION = '2026.10.15.42';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -826,7 +826,7 @@
         method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
         body: JSON.stringify({ text, model_id: model, language_code: model === 'eleven_v3' ? undefined : 'he' }),
       });
-      if (!r.ok) { let msg = ''; try { msg = (await r.json()).detail?.message || ''; } catch { /* */ } throw new Error(`ElevenLabs ${r.status}${msg ? ': ' + msg : ''}`); }
+      if (!r.ok) { let msg = ''; try { const j = await r.json(); msg = (j && j.detail && j.detail.message) || ''; } catch { /* */ } throw new Error(`ElevenLabs ${r.status}${msg ? ': ' + msg : ''}`); }
       blob = await r.blob(); await Media.putAudio(ck, blob);
     }
     stopSpeech(); const u = URL.createObjectURL(blob); liveUrls.push(u); audioEl = new Audio(u); audioEl.play();

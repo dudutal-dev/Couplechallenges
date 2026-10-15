@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.25';
+  const APP_VERSION = '2026.10.15.26';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1139,7 +1139,12 @@ EXAMPLE corset:
   const TR_SYSTEM = 'You translate short Hebrew instructions from a private intimacy app used by one adult couple into natural, clear, direct English, to be used as scene descriptions for image and video generation. Translate the meaning exactly and completely: do not soften, censor, summarize, moralize or add anything. The two people are always "the man" and "the woman"; one leads and the other is led. Keep durations, counts, body parts, objects and the order of actions exactly. Reply with ONLY a JSON array of strings, one per input string, in the same order, with no commentary.';
   const enKey = (c, v) => `${c.id}:${v.key}`;
   const hashStr = (t) => { let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return h.toString(36); };
-  function enFor(c, v) { const e = (S.en || {})[enKey(c, v)]; if (!e) return null; return e.h === hashStr(entryText(c, v).text) ? e.t : null; }
+  const EN_CTX = { m: { D: 'the man', S: 'the woman', dg: 'm', sg: 'f' }, f: { D: 'the woman', S: 'the man', dg: 'f', sg: 'm' } };
+  const capEn = (t) => t.replace(/(^|[.!?:]\s+|["“(]\s*)(the (?:man|woman))/g, (m, p, w) => p + w[0].toUpperCase() + w.slice(1));
+  function enFor(c, v) {
+    if (typeof CARDS_EN !== 'undefined' && CARDS_EN[c.id]) return capEn(toPlain(render(CARDS_EN[c.id], EN_CTX[v.key])));
+    const e = (S.en || {})[enKey(c, v)]; if (!e) return null; return e.h === hashStr(entryText(c, v).text) ? e.t : null;
+  }
   async function translateEntries(items, onProgress) {
     const { key, model } = S.ai;
     const Anthropic = await loadSdk();
@@ -1189,8 +1194,9 @@ EXAMPLE corset:
     $('#list-copy-all').textContent = curName ? 'העתקת הקטגוריה' : 'העתקת הכול';
     const trBtn = $('#list-translate');
     trBtn.disabled = false;
-    trBtn.textContent = missing.length ? `תרגום לאנגלית (Claude) · חסרים ${missing.length}` : 'הכול מתורגם לאנגלית ✓';
-    $('#list-tr-status').textContent = `${translated} מתוך ${all.length} נוסחים באנגלית${curName ? ' בקטגוריה' : ''}. הפרומפטים משתמשים באנגלית כשהיא קיימת.`;
+    trBtn.hidden = !missing.length;
+    trBtn.textContent = `תרגום לאנגלית של המשימות שהוספתם (Claude) · ${missing.length}`;
+    $('#list-tr-status').textContent = missing.length ? `${translated} מתוך ${all.length} נוסחים באנגלית${curName ? ' בקטגוריה' : ''}. ${missing.length} נוסחים של משימות שהוספתם עדיין בעברית.` : `כל ${all.length} הנוסחים${curName ? ' בקטגוריה' : ''} באנגלית. הפרומפטים לתמונה ולסרטון באנגלית מלאה.`;
     trBtn.onclick = async () => {
       if (!missing.length) return;
       if (!S.ai.key) { dialog('<h2>חסר מפתח API</h2><p>התרגום נעשה עם Claude דרך המפתח שמוגדר ב״איורים ב-AI״. המפתח נשמר רק בטלפון.</p>', [{ label: 'להגדרת המפתח', cls: 'primary', onClick: () => show('ai') }, { label: 'סגירה' }]); return; }

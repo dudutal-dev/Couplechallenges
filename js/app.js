@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.34';
+  const APP_VERSION = '2026.10.15.35';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -625,17 +625,7 @@
       return `<div class="ed-row ${hid ? 'hid' : ''}" data-id="${c.id}">
         <div class="ed-art">${illus(c.img || cat.img)}</div>
         <div class="ed-main"><small>עוצמה ${c.lvl || 'אחרי'} · ${c.to === 'B' ? 'שניכם' : c.to === 'D' ? 'מוביל/ה' : 'מובל/ת'}${c.id.startsWith('u_') ? ' · שלנו' : ''}</small><p>${render(c.text)}</p>
-          <div class="ed-media">
-            <button class="mslot ${m.img ? 'on' : ''}" data-act="img">🖼 ${m.img ? 'תמונה ✓' : 'תמונה'}</button>
-          </div>
-          <div class="ed-media"><span class="mlabel">אישי</span>
-            <button class="mslot ${m.vidA ? 'on' : ''}" data-act="vidA">🎬 ${leadLabel('a')}${m.vidA ? ' ✓' : ''}</button>
-            <button class="mslot ${m.vidB ? 'on' : ''}" data-act="vidB">🎬 ${leadLabel('b')}${m.vidB ? ' ✓' : ''}</button>
-          </div>
-          <div class="ed-media"><span class="mlabel">הדגמה</span>
-            <button class="mslot ${m.demoA ? 'on' : ''}" data-act="demoA">🎬 ${leadLabel('a')}${m.demoA ? ' ✓' : ''}</button>
-            <button class="mslot ${m.demoB ? 'on' : ''}" data-act="demoB">🎬 ${leadLabel('b')}${m.demoB ? ' ✓' : ''}</button>
-          </div></div>
+          <div class="ed-media"><small class="muted">${hasMedia(c.id) ? '🖼🎬 יש מדיה · ' : ''}העלאת תמונות וסרטונים: ב״להעתקה ופרומפטים״</small></div></div>
         <div class="ed-btns">
           <button class="icon ${fav ? 'on' : ''}" data-act="fav" title="מועדף">${fav ? '★' : '☆'}</button>
           <button class="icon" data-act="hide" title="${hid ? 'החזרה' : 'הסתרה'}">${hid ? '↩' : '🚫'}</button>
@@ -1251,6 +1241,18 @@ EXAMPLE corset:
   }
 
   let listCat = 'all';
+  // חריץ הסרטון של נוסח מסוים: ״הגבר מוביל״ = החריץ של בן הזוג שהוא הגבר (ואם שניהם מאותו מין: א׳ לנוסח הראשון, ב׳ לשני)
+  function slotForVariant(kind, v) {
+    const ga = S.partners.a.g, gb = S.partners.b.g;
+    const who = ga !== gb ? (v.key === 'm' ? (ga === 'm' ? 'a' : 'b') : (ga === 'f' ? 'a' : 'b')) : (v.key === 'm' ? 'a' : 'b');
+    return (kind === 'demo' ? 'demo' : 'vid') + who.toUpperCase();
+  }
+  function mediaBtnsHtml(c, v) {
+    const m = S.media[c.id] || {}, vs = slotForVariant('vid', v), ds = slotForVariant('demo', v);
+    return `<button class="mslot ${m.img ? 'on' : ''}" data-media="img" data-id="${c.id}" data-v="${v.key}">🖼 ${m.img ? 'תמונה ✓' : 'העלאת תמונה'}</button>
+      <button class="mslot ${m[vs] ? 'on' : ''}" data-media="${vs}" data-id="${c.id}" data-v="${v.key}">🎬 ${m[vs] ? 'סרטון אישי ✓' : 'העלאת סרטון אישי'}</button>
+      <button class="mslot ${m[ds] ? 'on' : ''}" data-media="${ds}" data-id="${c.id}" data-v="${v.key}">🎬 ${m[ds] ? 'הדגמה ✓' : 'העלאת הדגמה'}</button>`;
+  }
   function renderCopyList() {
     const host = $('#list-body');
     const allGroups = CATEGORIES.concat([{ id: AFTERCARE_ID, name: 'אחרי', img: 'blanket' }]).map((cat) => ({ cat, cards: allCards().filter((c) => c.cat === cat.id) })).filter((g) => g.cards.length);
@@ -1265,7 +1267,7 @@ EXAMPLE corset:
       const lines = [];
       const rows = cards.map((c, i) => COPY_CTX.map((v) => {
         const e = entryText(c, v); const line = `${e.text}`; lines.push(line); all.push(line); const en = enFor(c, v), shot = shotFor(c, v); if (!en) missing.push({ c, v }); else translated++;
-        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p>${en ? `<p class="en" dir="ltr">${esc(en)}</p>` : ''}${shot ? `<p class="en shot" dir="ltr"><b>Shot:</b> ${esc(shot)}</p>` : ''}<div class="cp-actions"><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button>${en ? `<button class="btn ghost small cp-btn" data-copy="${esc(en)}">English</button>` : ''}<button class="btn ghost small cp-btn" data-prompt="image" data-id="${c.id}" data-v="${v.key}">פרומפט תמונה</button><button class="btn ghost small cp-btn" data-prompt="video" data-id="${c.id}" data-v="${v.key}">פרומפט סרטון</button></div></div>`;
+        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p>${en ? `<p class="en" dir="ltr">${esc(en)}</p>` : ''}${shot ? `<p class="en shot" dir="ltr"><b>Shot:</b> ${esc(shot)}</p>` : ''}<div class="cp-actions"><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button>${en ? `<button class="btn ghost small cp-btn" data-copy="${esc(en)}">English</button>` : ''}<button class="btn ghost small cp-btn" data-prompt="image" data-id="${c.id}" data-v="${v.key}">פרומפט תמונה</button><button class="btn ghost small cp-btn" data-prompt="video" data-id="${c.id}" data-v="${v.key}">פרומפט סרטון</button></div><div class="cp-actions cp-media">${mediaBtnsHtml(c, v)}</div></div>`;
       }).join('')).join('');
       return `<section class="cp-group" data-cat="${cat.id}"><div class="cp-group-head">${illus(cat.img)}<h2>${cat.name}</h2><small>${cards.length} משימות × 2</small><button class="btn ghost small" data-copy-all="${esc(lines.join('\n\n'))}">העתקת הקטגוריה</button></div>${rows}</section>`;
     }).join('');
@@ -1297,6 +1299,7 @@ EXAMPLE corset:
     };
     $$('[data-copy]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copy, b)));
     $$('[data-copy-all]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copyAll, b)));
+    $$('[data-media]', host).forEach((b) => b.addEventListener('click', () => { const y = window.scrollY; mediaSlotDialog(b.dataset.id, b.dataset.media, () => { renderCopyList(); window.scrollTo(0, y); }); }));
     $$('[data-prompt]', host).forEach((b) => b.addEventListener('click', () => { const c = cardById(b.dataset.id), v = COPY_CTX.find((x) => x.key === b.dataset.v); if (c && v) copyText(buildPrompt(c, v, b.dataset.prompt), b); }));
     // הגדרות הפרומפט
     $('#prompt-style').value = S.promptStyle || DEFAULT_PROMPT_STYLE;

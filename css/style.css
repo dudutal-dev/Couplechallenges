@@ -423,3 +423,6 @@ body.tv-receiver #scr-tv::after{display:none}
 
 .cp-row p.shot{color:var(--text);opacity:.85;border-inline-start:2px solid var(--gold);padding-inline-start:8px}
 .cp-row p.shot b{color:var(--gold2)}
+
+.cp-media{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.cp-media .mslot{font-size:.78rem}

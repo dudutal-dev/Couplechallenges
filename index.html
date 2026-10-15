@@ -102,8 +102,8 @@
   <header class="top"><h1>עוד</h1></header>
   <div class="menu">
     <button class="menu-item" data-go="random"><svg class="il"><use href="#il-dice"/></svg><span>קלף אקראי</span></button>
-    <button class="menu-item" data-go="editor"><svg class="il"><use href="#il-marker"/></svg><span>כל המשימות לפי קטגוריות: תמונות, סרטונים, הוספה</span></button>
-    <button class="menu-item" data-go="list"><svg class="il"><use href="#il-speech"/></svg><span>כל המשימות להעתקה: הגבר מוביל / האשה מובילה</span></button>
+    <button class="menu-item" data-go="editor"><svg class="il"><use href="#il-marker"/></svg><span>כל המשימות לפי קטגוריות: הוספה, מועדפים, הסתרה</span></button>
+    <button class="menu-item" data-go="list"><svg class="il"><use href="#il-speech"/></svg><span>להעתקה ופרומפטים + העלאת תמונות וסרטונים לכל משימה</span></button>
     <button class="menu-item" data-go="limits"><svg class="il"><use href="#il-chain"/></svg><span>גבולות ועוצמה</span></button>
     <button class="menu-item" data-go="partners"><svg class="il"><use href="#il-heart"/></svg><span>שמות, תפקידים ומילת עצירה</span></button>
     <button class="menu-item" data-go="tv"><svg class="il"><use href="#il-camera"/></svg><span>קאסט לטלוויזיה (מצב 16:9)</span></button>
@@ -276,10 +276,10 @@
 <section class="screen" id="scr-list" hidden>
   <header class="top row">
     <button class="btn back" data-go="more">‹ עוד</button>
-    <h1>להעתקה</h1>
+    <h1>להעתקה ופרומפטים</h1>
     <button class="btn primary small" id="list-copy-all">העתקת הכול</button>
   </header>
-  <p class="muted tiny">כל משימה פעמיים: פעם ״הגבר מוביל״ ופעם ״האשה מובילה״, בלי שמות. סינון לפי קטגוריה בשורת הצ׳יפים; ״העתקת הכול״ והורדה פועלות על מה שמסונן. ״פרומפט תמונה/סרטון״ מעתיקים פרומפט מוכן למחולל שמתחיל בתיאור צילומי מדויק של האקט (מי איפה, מה זז, איך הקליפ נגמר; מוצג בכל שורה כ-Shot), ואחריו האנשים, הסגנון שלמטה + מי מוביל ומי מבצע + נושא ועוצמה + הנחיית ההדגמה + טקסט המשימה כסצנה באנגלית. לכל המשימות המובנות יש נוסח אנגלי קבוע בתוך האפליקציה (מוצג מתחת לעברית, עם כפתור English). משימות שתוסיפו בעצמכם אפשר לתרגם בלחיצה עם Claude דרך המפתח שב״איורים ב-AI״. <span id="list-count"></span></p>
+  <p class="muted tiny">כל משימה פעמיים: פעם ״הגבר מוביל״ ופעם ״האשה מובילה״, בלי שמות. מתחת לכל נוסח: העלאת התמונה של המשימה, הסרטון האישי וסרטון ההדגמה לאותו נוסח (למשל ״הגבר מוביל״ נשמר לערב שבו הגבר מוביל); מה שהועלה מוצג בכרטיס במשחק. סינון לפי קטגוריה בשורת הצ׳יפים; ״העתקת הכול״ והורדה פועלות על מה שמסונן. ״פרומפט תמונה/סרטון״ מעתיקים פרומפט מוכן למחולל שמתחיל בתיאור צילומי מדויק של האקט (מי איפה, מה זז, איך הקליפ נגמר; מוצג בכל שורה כ-Shot), ואחריו האנשים, הסגנון שלמטה + מי מוביל ומי מבצע + נושא ועוצמה + הנחיית ההדגמה + טקסט המשימה כסצנה באנגלית. לכל המשימות המובנות יש נוסח אנגלי קבוע בתוך האפליקציה (מוצג מתחת לעברית, עם כפתור English). משימות שתוסיפו בעצמכם אפשר לתרגם בלחיצה עם Claude דרך המפתח שב״איורים ב-AI״. <span id="list-count"></span></p>
   <details class="help">
     <summary>בסיס הפרומפט (אפשר לערוך, נשמר במכשיר)</summary>
     <p class="muted tiny">מעלים למחולל תמונת ייחוס של שתי הדמויות (או שתי תמונות). הפרומפט מתייחס אל ״הגבר״ ו״האשה״ מתמונת הייחוס, ולא נוגע בלבוש בכלל. מה שתכתבו כאן יקבע את הסגנון ואת רמת המפורשות; טקסט המשימה בעברית מצורף אחרי זה כסצנה.</p>

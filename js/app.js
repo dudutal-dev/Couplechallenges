@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.31';
+  const APP_VERSION = '2026.10.15.32';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1176,13 +1176,27 @@ EXAMPLE corset:
     const act = (S.promptAct || DEFAULT_PROMPT_ACT).trim();
     const action = shot ? `ACTION (show exactly this): ${shot}` : `ACTION (show exactly this; it is written as a task for the couple, perform it literally): ${en || e.text}`;
     const perf = c.to === 'B' ? 'Both do it together.' : `${cap(c.to === 'D' ? giver : recv)} is the one carrying out the instruction; the other responds.`;
-    const lines = [
+    // תמונה: פריים המפתח של האקט (בלי שלב ההכנה ובלי פריים הסיום), ומה התמונה צריכה להגיד במבט אחד
+    const sents = (shot || '').split(/(?<=\.)\s+/).filter(Boolean);
+    const body = sents.filter((t) => !/^End frame/i.test(t));
+    const keyFrame = shot
+      ? `KEY FRAME (this is the picture): ${body.join(' ')} Of all this, show the single instant in which the act is at its fullest: the contact, the stream, the grip or the insertion described, fully happening, with the position and the body parts named all visible at once and filling the frame. Not the moment before it and not the aftermath.`
+      : `KEY FRAME (this is the picture): the single instant in which this task is at its fullest, the act itself happening, with both people and the body parts involved clearly visible and filling the frame. Not the setup and not the aftermath. The task: ${en || e.text}`;
+    const essence = `TASK (what the picture must say at a glance): ${en || e.text}`;
+    const lines = kind === 'video' ? [
       action,
       `PEOPLE: the man and the woman from the attached reference image, no one else. ${cap(giver)} leads and performs the action on ${recv}; ${recv} is led and follows. ${perf}`,
       `LOOK: ${style}`,
-      kind === 'video' ? `VIDEO: ${video}` : 'STILL IMAGE: capture the moment of the movement itself, mid-action, not the end frame.',
+      `VIDEO: ${video}`,
+      `RULES: ${act}`,
+    ] : [
+      keyFrame,
+      essence,
+      `PEOPLE: the man and the woman from the attached reference image, no one else. ${cap(giver)} leads and performs the action on ${recv}; ${recv} is led and follows. ${perf}`,
+      `LOOK: ${style}`,
       `RULES: ${act}`,
     ];
+    lines.splice(0, lines.length, ...lines.filter(Boolean));
     return lines.join('\n');
   }
   function entryText(c, v) { const who = c.to === 'B' ? 'לשניהם' : fixHe('ל' + (c.to === 'D' ? v.ctx.D : v.ctx.S)); return { who, text: fixHe(toPlain(render(c.text, v.ctx))) }; }

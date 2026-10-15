@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.43';
+  const APP_VERSION = '2026.10.15.44';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -551,7 +551,7 @@
 
   // ---------- עוד ----------
   function renderMore() {
-    $('#opt-awake').checked = S.keepAwake; $('#opt-maybe').checked = S.includeMaybe; $('#opt-safety').checked = !!S.showSafety;
+    $('#opt-awake').checked = S.keepAwake; $('#opt-sound').checked = !S.videoMuted; $('#opt-maybe').checked = S.includeMaybe; $('#opt-safety').checked = !!S.showSafety;
     $('#pin-label').textContent = S.pinHash ? 'קוד נעילה: פעיל' : 'קוד נעילה: כבוי';
     $('#tts-label').textContent = 'הקראת כרטיסים: ' + (S.tts.mode === 'off' ? 'כבויה' : S.tts.mode === 'browser' ? 'קול הדפדפן' : 'ElevenLabs');
     Media.usage().then((u) => { $('#media-usage').textContent = `תמונות וסרטונים שלכם: ${u.count} קבצים, ${Media.fmtBytes(u.bytes)}`; });
@@ -603,6 +603,7 @@
     } catch (err) { dialog(`<h2>השחזור נכשל</h2><p class="muted">${esc(err.message || String(err))}</p>`, [{ label: 'סגירה' }]); }
   });
   $('#opt-awake').addEventListener('change', (e) => { S.keepAwake = e.target.checked; save(); });
+  $('#opt-sound').addEventListener('change', (e) => { S.videoMuted = !e.target.checked; save(); });
   $('#opt-maybe').addEventListener('change', (e) => { S.includeMaybe = e.target.checked; save(); });
   $('#opt-safety').addEventListener('change', (e) => { S.showSafety = e.target.checked; save(); });
 
@@ -744,10 +745,26 @@
       if (!rec || !rec.blob) { el.innerHTML = illus('camera'); continue; }
       const u = URL.createObjectURL(rec.blob); liveUrls.push(u);
       if (rec.kind === 'video') {
-        el.innerHTML = `<video src="${u}" playsinline controls loop muted autoplay preload="metadata"></video><button type="button" class="vid-expand" title="הגדלה">⛶</button>`;
+        el.innerHTML = `<video src="${u}" playsinline controls loop autoplay preload="metadata"></video><button type="button" class="vid-expand" title="הגדלה">⛶</button>`;
         $('.vid-expand', el).addEventListener('click', (ev) => { ev.stopPropagation(); videoFullscreen($('video', el), u); });
+        playWithSound($('video', el), el);
       } else { el.innerHTML = `<img src="${u}" alt="">`; $('img', el).addEventListener('click', () => { const lb = $('#lightbox'); lb.innerHTML = `<img src="${u}" alt="">`; lb.hidden = false; }); }
     }
+  }
+  // ניגון עם קול. אם הדפדפן חוסם אוטו-פליי עם קול, מנגנים בשקט ומציגים כפתור ״הפעלת קול״ שלחיצה אחת עליו פותחת את הקול
+  function playWithSound(v, host) {
+    if (!v) return;
+    v.muted = !!S.videoMuted; v.volume = 1;
+    const p = v.play();
+    if (!p || !p.catch) return;
+    p.catch(() => {
+      if (v.muted) return;
+      v.muted = true;
+      v.play().catch(() => {});
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'vid-sound'; b.textContent = '🔊 הפעלת קול';
+      b.addEventListener('click', (ev) => { ev.stopPropagation(); v.muted = false; v.volume = 1; v.play().catch(() => {}); b.remove(); });
+      host.appendChild(b);
+    });
   }
   function videoFullscreen(v, url) {
     if (tvOn) { tvVideoFull = true; renderTv(); return; }
@@ -758,7 +775,7 @@
     lightboxVideo(url);
   }
   function lightboxVideo(url) {
-    const lb = $('#lightbox'); lb.innerHTML = `<video src="${url}" playsinline controls autoplay loop></video><button class="btn stop small lb-close">סגירה</button>`;
+    const lb = $('#lightbox'); lb.innerHTML = `<video src="${url}" playsinline controls autoplay loop></video><button class="btn stop small lb-close">סגירה</button>`; playWithSound($('video', lb), lb);
     lb.hidden = false; $('.lb-close', lb).addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
   }
   function closeLightbox() { const lb = $('#lightbox'); lb.hidden = true; lb.innerHTML = '<img alt="">'; }
@@ -1052,7 +1069,7 @@ EXAMPLE corset:
     }
     stage.innerHTML = html;
     stage.classList.toggle('vfull', tvVideoFull && tvView === 'card' && !!$('.tv-art.media', stage));
-    hydrateCard(stage).then(() => { if (stage.classList.contains('vfull')) { const v = $('.tv-art.media video', stage); if (v) { v.muted = true; v.play().catch(() => {}); } } });
+    hydrateCard(stage).then(() => { if (stage.classList.contains('vfull')) { const v = $('.tv-art.media video', stage); if (v) playWithSound(v, v.parentElement); } });
     timerDraw();
     $$('[data-tv]', stage).forEach((b) => b.addEventListener('click', () => tvAction(b.dataset.tv, b)));
     tvSend();

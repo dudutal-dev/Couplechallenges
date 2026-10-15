@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.32';
+  const APP_VERSION = '2026.10.15.33';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1164,7 +1164,7 @@ EXAMPLE corset:
   // ל/ב/כ לפני ה׳ הידיעה בולעות אותה: "להגבר" -> "לגבר", "באשה" ולא "בהאשה"
   const fixHe = (t) => t.replace(/(^|[\s״"'(,.:;!?-])([לבכ])ה(גבר|אשה)/g, '$1$2$3');
   const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic scene. The two adult characters exactly as in the attached reference image (keep faces, hair, bodies and skin tone identical; the man and the woman from the reference). Dark bedroom at night, candlelight and one warm lamp, deep red velvet and brass details, 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
-  const DEFAULT_PROMPT_VIDEO = '10 seconds, one continuous shot, no cuts, no text. Slow push-in on a gimbal, candle flicker on skin, shallow focus, natural breathing. 0-2s: the starting position described in ACTION. 2-8s: the movement described in ACTION, continuous and clearly readable. 8-10s: the END FRAME described in ACTION, held still.';
+  const DEFAULT_PROMPT_VIDEO = '10 seconds, one continuous shot, no cuts, no text. Slow push-in on a gimbal, candle flicker on skin, shallow focus, natural breathing. 0-2s: the START position exactly as described. 2-8s: the MOVE, continuous and clearly readable, nothing added. 8-10s: the END FRAME, held still.';
   const CAT_EN = { control: 'dominance and control', sensory: 'sensory play', bondage: 'bondage and restraint', impact: 'impact play (spanking, paddle, flogger)', denial: 'teasing, edging and orgasm control', roleplay: 'role play', oral: 'oral sex', toys: 'toys', words: 'commands and dirty talk', exhibit: 'exhibition and being watched', anal: 'anal play and rimming', feet: 'feet', throat: 'hand on the throat (gesture only, no pressure)', fluids: 'spit and watersports', cum: 'cum play', aftercare: 'aftercare, closing' };
   const DEFAULT_PROMPT_ACT = 'Show exactly the ACTION above and nothing else: the same two people, the same positions, the same body parts, the same movement, the same end frame. Do not add people, objects or a different activity; do not cut away, do not change position mid-shot. The action and the body parts involved stay in frame and unobstructed from the first frame to the last. Any fluid comes from the body part named and nowhere else: urine flows from the genitals (the tip of the cock, or from between the labia), saliva falls from the mouth and lips, semen spurts from the tip of the cock; show the source, the stream or string in the air, and where it lands.';
   function buildPrompt(c, v, kind) {
@@ -1174,11 +1174,20 @@ EXAMPLE corset:
     const style = (S.promptStyle || DEFAULT_PROMPT_STYLE).trim();
     const video = (S.promptVideo || DEFAULT_PROMPT_VIDEO).trim();
     const act = (S.promptAct || DEFAULT_PROMPT_ACT).trim();
-    const action = shot ? `ACTION (show exactly this): ${shot}` : `ACTION (show exactly this; it is written as a task for the couple, perform it literally): ${en || e.text}`;
+    // פירוק תיאור הצילום לשלושה שלבים מפורשים: פתיחה, תנועה, פריים סיום (מיפוי ישיר לציר הזמן של הסרטון)
+    const beatsOf = (t) => {
+      const m = t.match(/^([\s\S]*?)(?:\s*End frame:\s*([\s\S]*))?$/); const bodyT = (m && m[1] || t).trim(); const endT = (m && m[2] || '').trim();
+      let sents = bodyT.split(/(?<=\.)\s+/).filter(Boolean);
+      if (sents.length < 2) { const parts = bodyT.split(/;\s*/); sents = parts.length > 1 ? [parts[0].replace(/\.?$/, '.'), parts.slice(1).join('; ')] : [bodyT]; }
+      return { start: sents[0], move: sents.length > 1 ? sents.slice(1).join(' ') : sents[0], end: endT };
+    };
+    const bt = shot ? beatsOf(shot) : null;
+    const action = bt
+      ? `ACTION, in three beats that the video follows in order.\nSTART (position before anything moves): ${bt.start}\nMOVE (the act itself, continuous, exactly this and nothing else): ${bt.move}${bt.end ? `\nEND FRAME (held still at the end): ${bt.end}` : ''}`
+      : `ACTION (show exactly this; it is written as a task for the couple, perform it literally): ${en || e.text}`;
     const perf = c.to === 'B' ? 'Both do it together.' : `${cap(c.to === 'D' ? giver : recv)} is the one carrying out the instruction; the other responds.`;
     // תמונה: פריים המפתח של האקט (בלי שלב ההכנה ובלי פריים הסיום), ומה התמונה צריכה להגיד במבט אחד
-    const sents = (shot || '').split(/(?<=\.)\s+/).filter(Boolean);
-    const body = sents.filter((t) => !/^End frame/i.test(t));
+    const body = bt ? [bt.start, bt.move] : [];
     const keyFrame = shot
       ? `KEY FRAME (this is the picture): ${body.join(' ')} Of all this, show the single instant in which the act is at its fullest: the contact, the stream, the grip or the insertion described, fully happening, with the position and the body parts named all visible at once and filling the frame. Not the moment before it and not the aftermath.`
       : `KEY FRAME (this is the picture): the single instant in which this task is at its fullest, the act itself happening, with both people and the body parts involved clearly visible and filling the frame. Not the setup and not the aftermath. The task: ${en || e.text}`;

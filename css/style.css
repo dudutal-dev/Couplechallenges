@@ -426,3 +426,6 @@ body.tv-receiver #scr-tv::after{display:none}
 
 .cp-media{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
 .cp-media .mslot{font-size:.78rem}
+
+.safe-bar{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));z-index:50;background:#5a2a2a;color:#fff;font-size:.85rem;padding:8px 12px;display:flex;gap:10px;align-items:center;justify-content:center}
+.safe-bar button{background:#fff2;border:1px solid #fff5;color:#fff;border-radius:999px;padding:4px 10px;font-size:.8rem}

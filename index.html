@@ -18,7 +18,31 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<div id="boot-error" hidden style="position:fixed;inset:0;z-index:9999;background:#120910;color:#f3e9e4;padding:28px 20px;font:16px/1.5 system-ui,sans-serif;direction:rtl;overflow:auto">
+  <h2 style="margin:0 0 6px;font-size:1.4rem">קטיפה לא עלתה כמו שצריך</h2>
+  <p id="boot-msg" style="opacity:.8;font-size:.9rem;word-break:break-word"></p>
+  <p style="font-size:.9rem">התמונות, הסרטונים וההגדרות שלכם לא נמחקים באף אחת מהאפשרויות האלה, חוץ מהאחרונה שמאפסת רק הגדרות.</p>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+    <button onclick="location.href=location.pathname+'?r='+Date.now()" style="padding:14px;border-radius:14px;border:0;background:#c9627a;color:#fff;font-size:1rem">רענון מלא</button>
+    <button onclick="sessionStorage.setItem('safe','1');location.href=location.pathname+'?r='+Date.now()" style="padding:14px;border-radius:14px;border:1px solid #6a4a5a;background:transparent;color:#f3e9e4;font-size:1rem">פתיחה במצב בטוח (בלי להציג תמונות וסרטונים)</button>
+    <button onclick="(async()=>{try{const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs)await r.unregister();const ks=await caches.keys();for(const k of ks)await caches.delete(k);}catch(e){}location.href=location.pathname+'?r='+Date.now()})()" style="padding:14px;border-radius:14px;border:1px solid #6a4a5a;background:transparent;color:#f3e9e4;font-size:1rem">ניקוי המטמון של האפליקציה וטעינה מחדש</button>
+    <button onclick="if(confirm('לאפס רק את ההגדרות (שמות, גבולות, ערב נוכחי)? התמונות והסרטונים נשארים במכשיר.')){try{localStorage.removeItem('ktifa.v1')}catch(e){};location.href=location.pathname+'?r='+Date.now()}" style="padding:14px;border-radius:14px;border:1px solid #a33;background:transparent;color:#f3b0b0;font-size:1rem">איפוס ההגדרות בלבד (המדיה נשארת)</button>
+  </div>
+  <p id="boot-ver" style="opacity:.6;font-size:.8rem;margin-top:16px"></p>
+</div>
+<script>
+(function(){
+  var shown=false, first='';
+  function show(msg){ if(shown) return; shown=true; var p=document.getElementById('boot-error'); if(!p) return; document.getElementById('boot-msg').textContent=msg||first||''; document.getElementById('boot-ver').textContent='אם זה חוזר, שלחו צילום מסך של ההודעה הזאת.'; p.hidden=false; }
+  window.addEventListener('error', function(e){ if(!first) first=(e.message||'')+(e.filename?' @'+e.filename.split('/').pop()+':'+e.lineno:''); });
+  window.addEventListener('unhandledrejection', function(e){ if(!first) first='Promise: '+((e.reason&&e.reason.message)||String(e.reason)); });
+  window.__bootTimer=setTimeout(function(){ show(first||'האפליקציה לא סיימה לעלות תוך 12 שניות.'); }, 12000);
+  window.__bootOk=function(){ clearTimeout(window.__bootTimer); };
+  window.__bootFail=function(err){ show('שגיאה בטעינה: '+((err&&err.message)||String(err))); };
+})();
+</script>
 <div id="sprite"></div>
+
 
 <!-- נעילה -->
 <section class="screen" id="scr-lock" hidden>

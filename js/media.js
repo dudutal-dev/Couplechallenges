@@ -8,14 +8,18 @@ const Media = (() => {
       if (!('indexedDB' in window)) return rej(new Error('no idb'));
       const r = indexedDB.open(DB, VER);
       r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('files')) d.createObjectStore('files'); if (!d.objectStoreNames.contains('audio')) d.createObjectStore('audio'); };
-      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+      r.onsuccess = () => { const d = r.result; d.onversionchange = () => { try { d.close(); } catch { /* */ } dbp = null; }; res(d); }; r.onerror = () => { dbp = null; rej(r.error); }; r.onblocked = () => { dbp = null; rej(new Error('IndexedDB blocked')); };
     });
+    dbp.catch(() => { dbp = null; });
     return dbp;
   }
   function tx(store, mode, fn) {
     return open().then((d) => new Promise((res, rej) => {
-      const t = d.transaction(store, mode), s = t.objectStore(store), q = fn(s);
-      t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+      let done = false, t = null; const fin = (f, v) => { if (done) return; done = true; clearTimeout(timer); f(v); };
+      const timer = setTimeout(() => { fin(rej, new Error('האחסון במכשיר לא הגיב בזמן')); try { t && t.abort(); } catch { /* */ } }, mode === 'readwrite' ? 90000 : 20000);
+      try { t = d.transaction(store, mode); } catch (e) { dbp = null; return fin(rej, e); }
+      const s = t.objectStore(store), q = fn(s);
+      t.oncomplete = () => fin(res, q && q.result); t.onerror = () => fin(rej, t.error); t.onabort = () => fin(rej, t.error || new Error('aborted'));
     }));
   }
   const put = (store, key, val) => tx(store, 'readwrite', (s) => s.put(val, key));

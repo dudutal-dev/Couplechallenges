@@ -69,10 +69,12 @@ const Media = (() => {
     try { const ks = await keys('files'); let total = 0; for (const k of ks) { const v = await get('files', k); total += (v && v.size) || 0; } return { count: ks.length, bytes: total }; }
     catch { return { count: 0, bytes: 0 }; }
   }
+  const allKeys = () => keys('files').catch(() => []);
+  const putRecord = (key, rec) => put('files', key, rec);
   const putAudio = (key, blob) => put('audio', key, blob).catch(() => {});
   const getAudio = (key) => get('audio', key).catch(() => null);
   async function clearAll() { try { await clear('files'); await clear('audio'); } catch { /* אין */ } }
   async function clearAudio() { try { await clear('audio'); } catch { /* אין */ } }
   const fmtBytes = (b) => b > 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.round(b / 1e3) + ' KB';
-  return { saveFile, saveAvatar, getFile, removeFile, usage, putAudio, getAudio, clearAll, clearAudio, fmtBytes };
+  return { saveFile, saveAvatar, getFile, removeFile, usage, putAudio, getAudio, clearAll, clearAudio, fmtBytes, allKeys, putRecord };
 })();

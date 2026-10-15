@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.30';
+  const APP_VERSION = '2026.10.15.31';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -556,9 +556,52 @@
     $('#tts-label').textContent = 'הקראת כרטיסים: ' + (S.tts.mode === 'off' ? 'כבויה' : S.tts.mode === 'browser' ? 'קול הדפדפן' : 'ElevenLabs');
     Media.usage().then((u) => { $('#media-usage').textContent = `תמונות וסרטונים שלכם: ${u.count} קבצים, ${Media.fmtBytes(u.bytes)}`; });
   }
-  $('#btn-media-usage').addEventListener('click', () => dialog('<h2>תמונות וסרטונים</h2><p>הקבצים נשמרים רק במכשיר הזה (IndexedDB). מחיקת האפליקציה או ניקוי נתוני האתר מוחקים אותם. אין גיבוי.</p>', [
+  $('#btn-media-usage').addEventListener('click', () => dialog('<h2>תמונות וסרטונים</h2><p>הקבצים נשמרים רק במכשיר הזה (IndexedDB). מחיקת האפליקציה או ניקוי נתוני האתר מוחקים אותם. ״גיבוי מלא לקובץ״ שומר את כולם לקובץ אחד.</p>', [
     { label: 'מחיקת כל התמונות והסרטונים', cls: 'danger', onClick: () => { Media.clearAll().then(() => { S.media = {}; S.avatars = { a: false, b: false }; save(); renderMore(); }); } },
     { label: 'סגירה' }]));
+
+  // ---------- גיבוי ושחזור ----------
+  const APP_ID = 'ktifa';
+  function backupMediaMap() {
+    const map = {};
+    Object.entries(S.media || {}).forEach(([cardId, m]) => Object.keys(m || {}).forEach((slot) => { map[mediaKey(cardId, slot)] = { cardId, slot }; }));
+    ['a', 'b'].forEach((k) => { map['avatar_' + k] = { avatar: k }; });
+    return map;
+  }
+  $('#btn-backup').addEventListener('click', async () => {
+    dialog('<h2>מכין גיבוי…</h2><p class="muted" id="bk-prog">אוסף קבצים</p><p class="muted tiny">זה יכול לקחת כמה דקות אם יש הרבה סרטונים. אל תסגרו את האפליקציה.</p>', []);
+    const prog = (t) => { const el = $('#bk-prog'); if (el) el.textContent = t; };
+    try {
+      const res = await Backup.exportAll({ app: APP_ID, version: APP_VERSION, state: JSON.parse(localStorage.getItem(KEY) || '{}'), mediaMap: backupMediaMap(), progress: prog });
+      if (res.parts.length === 1) Backup.download(res.parts[0].blob, res.parts[0].name);
+      const btns = res.parts.map((p, i) => ({ label: res.parts.length > 1 ? `הורדת חלק ${i + 1} מתוך ${res.parts.length} (${Media.fmtBytes(p.blob.size)})` : `הורדה שוב (${Media.fmtBytes(p.blob.size)})`, cls: 'primary', onClick: () => { Backup.download(p.blob, p.name); return true; } }));
+      dialog(`<h2>הגיבוי מוכן</h2><p>${res.count} קבצים, ${Media.fmtBytes(res.bytes)}${res.parts.length > 1 ? `, ב-${res.parts.length} חלקים. הורידו את כולם.` : '.'} הקובץ כולל גם את כל ההגדרות, הגבולות והמשימות שהוספתם.</p><p class="muted tiny">שמרו את הקובץ בענן או במחשב. לשחזור במכשיר אחר: ״עוד ← שחזור מקובץ גיבוי״ ובחירת הקובץ (בגיבוי מחולק: כל חלק בנפרד).</p>`, btns.concat([{ label: 'סגירה' }]));
+    } catch (e) { dialog(`<h2>הגיבוי נכשל</h2><p class="muted">${esc(e.message || String(e))}</p>`, [{ label: 'סגירה' }]); }
+  });
+  let restoreMode = 'all';
+  $('#btn-restore').addEventListener('click', () => dialog('<h2>שחזור מגיבוי</h2><p>בחרו קובץ גיבוי (.zip) שנוצר באפליקציה. התמונות והסרטונים יתווספו למכשיר הזה.</p><p class="muted tiny">״הכול״ מחזיר גם הגדרות, שמות, גבולות ומשימות שהוספתם, ומחליף את מה שיש עכשיו. ״רק מדיה״ משאיר את ההגדרות הנוכחיות.</p>', [
+    { label: 'שחזור הכול', cls: 'primary', onClick: () => { restoreMode = 'all'; $('#restore-file').click(); } },
+    { label: 'רק תמונות וסרטונים', onClick: () => { restoreMode = 'media'; $('#restore-file').click(); } },
+    { label: 'ביטול' }]));
+  $('#restore-file').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    dialog('<h2>משחזר…</h2><p class="muted" id="bk-prog">קורא את הקובץ</p>', []);
+    const prog = (t) => { const el = $('#bk-prog'); if (el) el.textContent = t; };
+    try {
+      const r = await Backup.importFile(f, prog);
+      if (r.manifest.app && r.manifest.app !== APP_ID) throw new Error(`זה גיבוי של אפליקציה אחרת (${r.manifest.app})`);
+      if (restoreMode === 'all' && r.manifest.state) localStorage.setItem(KEY, JSON.stringify(r.manifest.state));
+      else {
+        const st = r.manifest.state || {};
+        for (const m of r.manifest.files || []) {
+          if (m.cardId && m.slot) { S.media[m.cardId] = Object.assign({}, S.media[m.cardId] || {}, { [m.slot]: (st.media && st.media[m.cardId] && st.media[m.cardId][m.slot]) || { size: m.size } }); }
+          if (m.avatar) S.avatars[m.avatar] = true;
+        }
+        save();
+      }
+      dialog(`<h2>השחזור הושלם</h2><p>${r.count} קבצים שוחזרו${r.manifest.parts > 1 ? ` (חלק ${r.manifest.part} מתוך ${r.manifest.parts}; שחזרו גם את שאר החלקים)` : ''}.</p>`, [{ label: 'טעינה מחדש', cls: 'primary', onClick: () => location.reload() }]);
+    } catch (err) { dialog(`<h2>השחזור נכשל</h2><p class="muted">${esc(err.message || String(err))}</p>`, [{ label: 'סגירה' }]); }
+  });
   $('#opt-awake').addEventListener('change', (e) => { S.keepAwake = e.target.checked; save(); });
   $('#opt-maybe').addEventListener('change', (e) => { S.includeMaybe = e.target.checked; save(); });
   $('#opt-safety').addEventListener('change', (e) => { S.showSafety = e.target.checked; save(); });

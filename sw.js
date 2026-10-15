@@ -1,8 +1,8 @@
 // Service worker – רשת קודם כשיש רשת (כדי שגרסה חדשה תיכנס לבד), מטמון כשאין.
-const CACHE = 'ktifa-v30';
+const CACHE = 'ktifa-v31';
 const ASSETS = [
   './', './index.html', './css/style.css',
-  './js/app.js', './js/cards-data.js', './js/cards-en.js', './js/illustrations.js', './js/media.js',
+  './js/app.js', './js/cards-data.js', './js/cards-en.js', './js/illustrations.js', './js/media.js', './js/backup.js',
   './manifest.webmanifest', './version.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'
 ];

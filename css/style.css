@@ -443,8 +443,12 @@ body.tv-receiver #scr-tv::after{display:none}
 .tv-stage.vfull .tv-chips{margin-bottom:.8cqw}
 /* רמז לסיבוב המסך כשהטלפון מאונך */
 .tv-rotate{display:none;position:fixed;inset:0;z-index:40;background:#000e;color:var(--gold2);text-align:center;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;font-size:1.1rem;line-height:1.5}
-.tv-rotate div{font-size:3rem;animation:breathe 2s ease-in-out infinite}
+.tv-rotate .ico{font-size:3rem;animation:breathe 2s ease-in-out infinite}
+.tv-rotate.off{display:none !important}
+.tv-rotate-btns{display:flex;flex-direction:column;gap:10px;margin-top:8px;width:min(100%,320px)}
+.tv-rotate-btns .btn{font-size:1rem}
 @media (orientation: portrait){ body.tv-on .tv-rotate{display:flex} }
+body.tv-receiver .tv-rotate{display:none !important}
 
 .vid-sound{position:absolute;bottom:10px;inset-inline-end:10px;z-index:3;background:#000c;border:1px solid var(--gold);color:var(--gold2);border-radius:999px;padding:8px 14px;font-size:.9rem}
 .tv-art .vid-sound{font-size:1.6cqw;padding:.8cqw 1.6cqw;bottom:1cqw;inset-inline-end:1cqw}

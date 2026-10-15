@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.44';
+  const APP_VERSION = '2026.10.15.45';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1005,10 +1005,12 @@ EXAMPLE corset:
   async function enterTv() {
     tvOn = true; tvView = diceResult && current === 'dice' ? 'dice' : 'card';
     document.body.classList.add('tv-on'); show('tv'); renderTv(); requestWake();
-    if (!$('#tv-rotate')) { const h = document.createElement('div'); h.id = 'tv-rotate'; h.className = 'tv-rotate'; h.innerHTML = '<div>↻</div><p>סובבו את הטלפון לרוחב.<br>כך הטלוויזיה מתמלאת: המשימה והסרטון יחד.</p>'; $('#scr-tv').appendChild(h); }
+    if (!$('#tv-rotate')) { const h = document.createElement('div'); h.id = 'tv-rotate'; h.className = 'tv-rotate'; h.innerHTML = '<div class="ico">↻</div><p>סובבו את הטלפון לרוחב.<br>כך הטלוויזיה מתמלאת: המשימה והסרטון יחד.</p><div class="tv-rotate-btns"><button type="button" class="btn ghost" data-rot="skip">להמשיך כך</button><button type="button" class="btn primary" data-rot="exit">יציאה ממצב טלוויזיה</button></div>'; $('#scr-tv').appendChild(h); $$('[data-rot]', h).forEach((b) => b.addEventListener('click', () => { if (b.dataset.rot === 'exit') exitTv(); else h.classList.add('off'); })); }
+    $('#tv-rotate').classList.remove('off');
     try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch { /* iOS */ }
     try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { /* לא נתמך */ }
   }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tvOn && !isReceiver) exitTv(); });
   function exitTv() {
     tvOn = false; document.body.classList.remove('tv-on');
     try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch { /* */ }

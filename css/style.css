@@ -395,3 +395,5 @@ body.tv-receiver #scr-tv::after{display:none}
 .list-filters .chip{font:inherit;font-size:.85rem;cursor:pointer;background:var(--panel)}
 .list-filters .chip small{opacity:.7;margin-inline-start:2px}
 .list-filters .chip.on{background:var(--panel2)}
+
+.cp-row p.en{font-size:.86rem;color:var(--muted);direction:ltr;text-align:left;font-family:Heebo,system-ui,sans-serif}

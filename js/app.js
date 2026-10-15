@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.24';
+  const APP_VERSION = '2026.10.15.25';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,7 +19,7 @@
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
     ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
     showSafety: false, eveningAlt: false, vidPref: 'personal',
-    promptStyle: '', promptVideo: '', promptAct: '',
+    promptStyle: '', promptVideo: '', promptAct: '', en: {},
     customIllus: {},
   });
   let S = load();
@@ -1130,9 +1130,42 @@ EXAMPLE corset:
     const act = (S.promptAct || DEFAULT_PROMPT_ACT).trim();
     const dur = kind === 'video' && c.min ? ` The real thing lasts about ${c.min} minutes; compress it into the clip but keep the key moves in order.` : '';
     const theme = `Theme: ${CAT_EN[c.cat] || (catOf(c.cat) || {}).name || ''}. Intensity ${c.lvl ? c.lvl + ' of 3' : 'closing'}.`;
-    return `${style}${video}\n${roles} ${perf}\n${theme}\n${act}${dur}\nScene (Hebrew task text; this is the act to demonstrate, follow it literally): ${e.text}`;
+    const en = enFor(c, v);
+    const scene = en ? `Scene (this is the act to demonstrate; follow it literally): ${en}` : `Scene (Hebrew task text; translate it and demonstrate it literally): ${e.text}`;
+    return `${style}${video}\n${roles} ${perf}\n${theme}\n${act}${dur}\n${scene}`;
   }
   function entryText(c, v) { const who = c.to === 'B' ? 'לשניהם' : fixHe('ל' + (c.to === 'D' ? v.ctx.D : v.ctx.S)); return { who, text: fixHe(toPlain(render(c.text, v.ctx))) }; }
+  // ---------- תרגום המשימות לאנגלית (לפרומפטים) ----------
+  const TR_SYSTEM = 'You translate short Hebrew instructions from a private intimacy app used by one adult couple into natural, clear, direct English, to be used as scene descriptions for image and video generation. Translate the meaning exactly and completely: do not soften, censor, summarize, moralize or add anything. The two people are always "the man" and "the woman"; one leads and the other is led. Keep durations, counts, body parts, objects and the order of actions exactly. Reply with ONLY a JSON array of strings, one per input string, in the same order, with no commentary.';
+  const enKey = (c, v) => `${c.id}:${v.key}`;
+  const hashStr = (t) => { let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return h.toString(36); };
+  function enFor(c, v) { const e = (S.en || {})[enKey(c, v)]; if (!e) return null; return e.h === hashStr(entryText(c, v).text) ? e.t : null; }
+  async function translateEntries(items, onProgress) {
+    const { key, model } = S.ai;
+    const Anthropic = await loadSdk();
+    const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+    S.en = S.en || {};
+    let done = 0, failed = 0, lastErr = '';
+    for (let i = 0; i < items.length; i += 12) {
+      const batch = items.slice(i, i + 12);
+      const inputs = batch.map(({ c, v }) => entryText(c, v).text);
+      try {
+        const req = { model, max_tokens: 8000, output_config: { effort: 'low' }, system: TR_SYSTEM, messages: [{ role: 'user', content: JSON.stringify(inputs) }] };
+        const res = model !== 'claude-haiku-5-5'
+          ? await client.beta.messages.create({ ...req, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
+          : await client.messages.create(req);
+        if (res.stop_reason === 'refusal') throw new Error('המודל סירב לתרגם קבוצה של משימות');
+        const text = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+        const m = text.match(/\[[\s\S]*\]/); if (!m) throw new Error('תשובה לא תקינה מהמודל');
+        const arr = JSON.parse(m[0]); if (!Array.isArray(arr) || arr.length !== inputs.length) throw new Error('מספר התרגומים לא תואם');
+        batch.forEach(({ c, v }, j) => { S.en[enKey(c, v)] = { h: hashStr(inputs[j]), t: String(arr[j]).trim() }; });
+        done += batch.length; save();
+      } catch (e) { failed += batch.length; lastErr = e.message || String(e); }
+      onProgress && onProgress(done + failed, items.length);
+    }
+    return { done, failed, lastErr };
+  }
+
   let listCat = 'all';
   function renderCopyList() {
     const host = $('#list-body');
@@ -1143,17 +1176,31 @@ EXAMPLE corset:
     $$('.chip', filt).forEach((b) => b.addEventListener('click', () => { listCat = b.dataset.cat; renderCopyList(); filt.scrollIntoView({ block: 'start', behavior: 'smooth' }); }));
     const groups = allGroups.filter((g) => listCat === 'all' || g.cat.id === listCat);
     const curName = listCat === 'all' ? '' : groups[0].cat.name;
-    const all = [];
+    const all = [], missing = []; let translated = 0;
     host.innerHTML = groups.map(({ cat, cards }) => {
       const lines = [];
       const rows = cards.map((c, i) => COPY_CTX.map((v) => {
-        const e = entryText(c, v); const line = `${e.text}`; lines.push(line); all.push(line);
-        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p><div class="cp-actions"><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button><button class="btn ghost small cp-btn" data-prompt="image" data-id="${c.id}" data-v="${v.key}">פרומפט תמונה</button><button class="btn ghost small cp-btn" data-prompt="video" data-id="${c.id}" data-v="${v.key}">פרומפט סרטון</button></div></div>`;
+        const e = entryText(c, v); const line = `${e.text}`; lines.push(line); all.push(line); const en = enFor(c, v); if (!en) missing.push({ c, v }); else translated++;
+        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p>${en ? `<p class="en" dir="ltr">${esc(en)}</p>` : ''}<div class="cp-actions"><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button>${en ? `<button class="btn ghost small cp-btn" data-copy="${esc(en)}">English</button>` : ''}<button class="btn ghost small cp-btn" data-prompt="image" data-id="${c.id}" data-v="${v.key}">פרומפט תמונה</button><button class="btn ghost small cp-btn" data-prompt="video" data-id="${c.id}" data-v="${v.key}">פרומפט סרטון</button></div></div>`;
       }).join('')).join('');
       return `<section class="cp-group" data-cat="${cat.id}"><div class="cp-group-head">${illus(cat.img)}<h2>${cat.name}</h2><small>${cards.length} משימות × 2</small><button class="btn ghost small" data-copy-all="${esc(lines.join('\n\n'))}">העתקת הקטגוריה</button></div>${rows}</section>`;
     }).join('');
     $('#list-count').textContent = `${all.length / 2} משימות, ${all.length} נוסחים${curName ? ' · מסונן: ' + curName : ''}`;
     $('#list-copy-all').textContent = curName ? 'העתקת הקטגוריה' : 'העתקת הכול';
+    const trBtn = $('#list-translate');
+    trBtn.disabled = false;
+    trBtn.textContent = missing.length ? `תרגום לאנגלית (Claude) · חסרים ${missing.length}` : 'הכול מתורגם לאנגלית ✓';
+    $('#list-tr-status').textContent = `${translated} מתוך ${all.length} נוסחים באנגלית${curName ? ' בקטגוריה' : ''}. הפרומפטים משתמשים באנגלית כשהיא קיימת.`;
+    trBtn.onclick = async () => {
+      if (!missing.length) return;
+      if (!S.ai.key) { dialog('<h2>חסר מפתח API</h2><p>התרגום נעשה עם Claude דרך המפתח שמוגדר ב״איורים ב-AI״. המפתח נשמר רק בטלפון.</p>', [{ label: 'להגדרת המפתח', cls: 'primary', onClick: () => show('ai') }, { label: 'סגירה' }]); return; }
+      trBtn.disabled = true; trBtn.textContent = `מתרגם… 0/${missing.length}`;
+      try {
+        const r = await translateEntries(missing, (d, t) => { trBtn.textContent = `מתרגם… ${d}/${t}`; });
+        renderCopyList();
+        if (r.failed) dialog(`<h2>תורגמו ${r.done}, נכשלו ${r.failed}</h2><p class="muted">${esc(r.lastErr)}</p><p>אפשר ללחוץ שוב כדי לנסות את החסרים.</p>`, [{ label: 'סגירה' }]);
+      } catch (e) { renderCopyList(); dialog(`<h2>התרגום נכשל</h2><p class="muted">${esc(e.message || String(e))}</p>`, [{ label: 'סגירה' }]); }
+    };
     $('#list-copy-videos').textContent = curName ? `פרומפטי הסרטון: ${curName}` : 'העתקת כל פרומפטי הסרטון';
     $('#list-copy-all').onclick = (e) => copyText(all.join('\n\n'), e.currentTarget);
     const allPrompts = (kind) => groups.flatMap(({ cat, cards }) => cards.flatMap((c) => COPY_CTX.map((v) => `### ${cat.name} · ${v.label}\n${buildPrompt(c, v, kind)}`))).join('\n\n');

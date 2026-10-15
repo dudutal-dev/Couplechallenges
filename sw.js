@@ -1,5 +1,5 @@
 // Service worker – רשת קודם כשיש רשת (כדי שגרסה חדשה תיכנס לבד), מטמון כשאין.
-const CACHE = 'ktifa-v23';
+const CACHE = 'ktifa-v24';
 const ASSETS = [
   './', './index.html', './css/style.css',
   './js/app.js', './js/cards-data.js', './js/illustrations.js', './js/media.js',

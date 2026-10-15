@@ -217,18 +217,20 @@
     <h1>להעתקה</h1>
     <button class="btn primary small" id="list-copy-all">העתקת הכול</button>
   </header>
-  <p class="muted tiny">כל משימה פעמיים: פעם ״הגבר מוביל״ ופעם ״האשה מובילה״, בלי שמות. ״העתקה״ מעתיקה את הנוסח. ״פרומפט תמונה/סרטון״ מעתיקים פרומפט מוכן למחולל: בסיס הסגנון שלמטה + מי מוביל + טקסט המשימה כסצנה. <span id="list-count"></span></p>
+  <p class="muted tiny">כל משימה פעמיים: פעם ״הגבר מוביל״ ופעם ״האשה מובילה״, בלי שמות. סינון לפי קטגוריה בשורת הצ׳יפים; ״העתקת הכול״ והורדה פועלות על מה שמסונן. ״פרומפט תמונה/סרטון״ מעתיקים פרומפט מוכן למחולל: הסגנון שלמטה + מי מוביל ומי מבצע + נושא ועוצמה + הנחיית ההדגמה + טקסט המשימה כסצנה. <span id="list-count"></span></p>
   <details class="help">
     <summary>בסיס הפרומפט (אפשר לערוך, נשמר במכשיר)</summary>
     <p class="muted tiny">מעלים למחולל תמונת ייחוס של שתי הדמויות (או שתי תמונות). הפרומפט מתייחס אל ״הגבר״ ו״האשה״ מתמונת הייחוס, ולא נוגע בלבוש בכלל. מה שתכתבו כאן יקבע את הסגנון ואת רמת המפורשות; טקסט המשימה בעברית מצורף אחרי זה כסצנה.</p>
     <label>תמונה<textarea id="prompt-style" rows="5" dir="ltr"></textarea></label>
-    <label>תוספת לסרטון<textarea id="prompt-video" rows="2" dir="ltr"></textarea></label>
+    <label>תוספת לסרטון<textarea id="prompt-video" rows="3" dir="ltr"></textarea></label>
+    <label>הנחיית הדגמה (איך להראות את האקט)<textarea id="prompt-act" rows="4" dir="ltr"></textarea></label>
     <button class="btn ghost small" id="prompt-reset">חזרה לברירת המחדל</button>
   </details>
   <div class="row gap" style="margin-bottom:10px">
     <button class="btn primary" id="list-copy-videos">העתקת כל פרומפטי הסרטון</button>
     <button class="btn ghost" id="list-download">הורדה כקובץ טקסט</button>
   </div>
+  <div class="filters list-filters" id="list-filters"></div>
   <div id="list-body"></div>
 </section>
 

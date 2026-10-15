@@ -390,3 +390,8 @@ body.tv-receiver #scr-tv::after{display:none}
 .tv-stage.vfull .tv-bar{opacity:.25;transition:opacity .2s}
 .tv-stage.vfull .tv-bar:hover,.tv-stage.vfull .tv-bar:active{opacity:1}
 .tv-stage.vfull::before,.tv-stage.vfull::after{display:none}
+
+.list-filters{position:sticky;top:0;z-index:3;background:var(--bg);padding-top:8px;margin:0 -2px 6px}
+.list-filters .chip{font:inherit;font-size:.85rem;cursor:pointer;background:var(--panel)}
+.list-filters .chip small{opacity:.7;margin-inline-start:2px}
+.list-filters .chip.on{background:var(--panel2)}

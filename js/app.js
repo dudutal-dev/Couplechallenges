@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.14.23';
+  const APP_VERSION = '2026.10.15.24';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,7 +19,7 @@
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
     ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
     showSafety: false, eveningAlt: false, vidPref: 'personal',
-    promptStyle: '', promptVideo: '',
+    promptStyle: '', promptVideo: '', promptAct: '',
     customIllus: {},
   });
   let S = load();
@@ -1117,18 +1117,32 @@ EXAMPLE corset:
   // ל/ב/כ לפני ה׳ הידיעה בולעות אותה: "להגבר" -> "לגבר", "באשה" ולא "בהאשה"
   const fixHe = (t) => t.replace(/(^|[\s״"'(,.:;!?-])([לבכ])ה(גבר|אשה)/g, '$1$2$3');
   const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic scene. The two adult characters exactly as in the attached reference image (keep faces, hair, bodies and skin tone identical; the man and the woman from the reference). Dark bedroom at night, candlelight and one warm lamp, deep red velvet and brass details, 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
-  const DEFAULT_PROMPT_VIDEO = '10 second video, one continuous shot: slow push-in on a gimbal, candle flicker on skin, shallow focus, natural breathing and real continuous movement that performs the scene from start to finish, no cuts, no text.';
+  const DEFAULT_PROMPT_VIDEO = '10 second video, one continuous shot, no cuts, no text. Camera: slow push-in on a gimbal, candle flicker on skin, shallow focus, natural breathing and real continuous movement. Timeline: 0-2s the starting position, 2-8s the action itself performed step by step so it reads clearly, 8-10s the final position held with the partner\'s reaction. The camera never leaves the act.';
+  const CAT_EN = { control: 'dominance and control', sensory: 'sensory play', bondage: 'bondage and restraint', impact: 'impact play (spanking, paddle, flogger)', denial: 'teasing, edging and orgasm control', roleplay: 'role play', oral: 'oral sex', toys: 'toys', words: 'commands and dirty talk', exhibit: 'exhibition and being watched', anal: 'anal play and rimming', feet: 'feet', throat: 'hand on the throat (gesture only, no pressure)', fluids: 'spit and watersports', cum: 'cum play', aftercare: 'aftercare, closing' };
+  const DEFAULT_PROMPT_ACT = 'Demonstrate the act clearly, like a how-to: the exact action, hands, mouth, body parts, props and positions named in the scene are in frame, unobstructed and unmistakable at first glance. Show both the one performing the action and the partner reacting (face, breath, posture). Frame wide enough to read the whole action, close enough to see the detail. No implication, no symbolism, no cutaways: the act itself is the subject of the shot.';
   function buildPrompt(c, v, kind) {
     const e = entryText(c, v);
-    const roles = v.key === 'm' ? 'The man from the reference image leads; the woman is led.' : 'The woman from the reference image leads; the man is led.';
+    const man = v.key === 'm', giver = man ? 'the man' : 'the woman', recv = man ? 'the woman' : 'the man';
+    const roles = `Roles: ${giver} from the reference image leads and performs the action on ${recv}; ${recv} is led and follows.`;
+    const perf = c.to === 'B' ? 'Both do the scene together.' : `The instruction is addressed to ${c.to === 'D' ? giver : recv}, who carries it out; the other partner responds.`;
     const style = (S.promptStyle || DEFAULT_PROMPT_STYLE).trim();
     const video = kind === 'video' ? ' ' + (S.promptVideo || DEFAULT_PROMPT_VIDEO).trim() : '';
-    return `${style}${video}\n${roles}\nScene (Hebrew task text, follow it literally): ${e.text}`;
+    const act = (S.promptAct || DEFAULT_PROMPT_ACT).trim();
+    const dur = kind === 'video' && c.min ? ` The real thing lasts about ${c.min} minutes; compress it into the clip but keep the key moves in order.` : '';
+    const theme = `Theme: ${CAT_EN[c.cat] || (catOf(c.cat) || {}).name || ''}. Intensity ${c.lvl ? c.lvl + ' of 3' : 'closing'}.`;
+    return `${style}${video}\n${roles} ${perf}\n${theme}\n${act}${dur}\nScene (Hebrew task text; this is the act to demonstrate, follow it literally): ${e.text}`;
   }
   function entryText(c, v) { const who = c.to === 'B' ? 'לשניהם' : fixHe('ל' + (c.to === 'D' ? v.ctx.D : v.ctx.S)); return { who, text: fixHe(toPlain(render(c.text, v.ctx))) }; }
+  let listCat = 'all';
   function renderCopyList() {
     const host = $('#list-body');
-    const groups = CATEGORIES.concat([{ id: AFTERCARE_ID, name: 'אחרי', img: 'blanket' }]).map((cat) => ({ cat, cards: allCards().filter((c) => c.cat === cat.id) })).filter((g) => g.cards.length);
+    const allGroups = CATEGORIES.concat([{ id: AFTERCARE_ID, name: 'אחרי', img: 'blanket' }]).map((cat) => ({ cat, cards: allCards().filter((c) => c.cat === cat.id) })).filter((g) => g.cards.length);
+    if (listCat !== 'all' && !allGroups.some((g) => g.cat.id === listCat)) listCat = 'all';
+    const filt = $('#list-filters');
+    filt.innerHTML = `<button class="chip ${listCat === 'all' ? 'on' : ''}" data-cat="all">הכול</button>` + allGroups.map((g) => `<button class="chip ${listCat === g.cat.id ? 'on' : ''}" data-cat="${g.cat.id}">${g.cat.name} <small>${g.cards.length}</small></button>`).join('');
+    $$('.chip', filt).forEach((b) => b.addEventListener('click', () => { listCat = b.dataset.cat; renderCopyList(); filt.scrollIntoView({ block: 'start', behavior: 'smooth' }); }));
+    const groups = allGroups.filter((g) => listCat === 'all' || g.cat.id === listCat);
+    const curName = listCat === 'all' ? '' : groups[0].cat.name;
     const all = [];
     host.innerHTML = groups.map(({ cat, cards }) => {
       const lines = [];
@@ -1136,16 +1150,18 @@ EXAMPLE corset:
         const e = entryText(c, v); const line = `${e.text}`; lines.push(line); all.push(line);
         return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p><div class="cp-actions"><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button><button class="btn ghost small cp-btn" data-prompt="image" data-id="${c.id}" data-v="${v.key}">פרומפט תמונה</button><button class="btn ghost small cp-btn" data-prompt="video" data-id="${c.id}" data-v="${v.key}">פרומפט סרטון</button></div></div>`;
       }).join('')).join('');
-      return `<section class="cp-group"><div class="cp-group-head">${illus(cat.img)}<h2>${cat.name}</h2><small>${cards.length} משימות × 2</small><button class="btn ghost small" data-copy-all="${esc(lines.join('\n\n'))}">העתקת הקטגוריה</button></div>${rows}</section>`;
+      return `<section class="cp-group" data-cat="${cat.id}"><div class="cp-group-head">${illus(cat.img)}<h2>${cat.name}</h2><small>${cards.length} משימות × 2</small><button class="btn ghost small" data-copy-all="${esc(lines.join('\n\n'))}">העתקת הקטגוריה</button></div>${rows}</section>`;
     }).join('');
-    $('#list-count').textContent = `${all.length / 2} משימות, ${all.length} נוסחים`;
+    $('#list-count').textContent = `${all.length / 2} משימות, ${all.length} נוסחים${curName ? ' · מסונן: ' + curName : ''}`;
+    $('#list-copy-all').textContent = curName ? 'העתקת הקטגוריה' : 'העתקת הכול';
+    $('#list-copy-videos').textContent = curName ? `פרומפטי הסרטון: ${curName}` : 'העתקת כל פרומפטי הסרטון';
     $('#list-copy-all').onclick = (e) => copyText(all.join('\n\n'), e.currentTarget);
     const allPrompts = (kind) => groups.flatMap(({ cat, cards }) => cards.flatMap((c) => COPY_CTX.map((v) => `### ${cat.name} · ${v.label}\n${buildPrompt(c, v, kind)}`))).join('\n\n');
     $('#list-copy-videos').onclick = (e) => copyText(allPrompts('video'), e.currentTarget);
     $('#list-download').onclick = () => {
       const txt = `קטיפה – פרומפטים לסרטונים (${new Date().toLocaleDateString('he-IL')})\n\n` + allPrompts('video');
       const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' }); const u = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = u; a.download = 'ktifa-video-prompts.txt'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 2000);
+      const a = document.createElement('a'); a.href = u; a.download = 'ktifa-video-prompts' + (listCat === 'all' ? '' : '-' + listCat) + '.txt'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 2000);
     };
     $$('[data-copy]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copy, b)));
     $$('[data-copy-all]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copyAll, b)));
@@ -1153,9 +1169,11 @@ EXAMPLE corset:
     // הגדרות הפרומפט
     $('#prompt-style').value = S.promptStyle || DEFAULT_PROMPT_STYLE;
     $('#prompt-video').value = S.promptVideo || DEFAULT_PROMPT_VIDEO;
+    $('#prompt-act').value = S.promptAct || DEFAULT_PROMPT_ACT;
+    $('#prompt-act').oninput = (e) => { S.promptAct = e.target.value; save(); };
     $('#prompt-style').oninput = (e) => { S.promptStyle = e.target.value; save(); };
     $('#prompt-video').oninput = (e) => { S.promptVideo = e.target.value; save(); };
-    $('#prompt-reset').onclick = () => { S.promptStyle = ''; S.promptVideo = ''; save(); renderCopyList(); };
+    $('#prompt-reset').onclick = () => { S.promptStyle = ''; S.promptVideo = ''; S.promptAct = ''; save(); renderCopyList(); };
   }
 
   // ---------- אתחול ----------

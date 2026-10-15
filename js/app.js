@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.40';
+  const APP_VERSION = '2026.10.15.41';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1175,9 +1175,11 @@ EXAMPLE corset:
     const act = (S.promptAct || DEFAULT_PROMPT_ACT).trim();
     const keep = (S.promptKeep || DEFAULT_PROMPT_KEEP).trim();
     // פירוק תיאור הצילום לשלושה שלבים מפורשים: פתיחה, תנועה, פריים סיום (מיפוי ישיר לציר הזמן של הסרטון)
+    // פיצול למשפטים בלי lookbehind (Safari ישן נכשל בניתוח כל הקובץ בגללו)
+    const splitSentences = (t) => { const out = []; const re = /[\s\S]*?\.(?=\s+|$)/g; let m, last = 0; while ((m = re.exec(t))) { if (m[0].trim()) out.push(m[0].trim()); last = re.lastIndex; if (m[0].length === 0) re.lastIndex++; } if (last < t.length && t.slice(last).trim()) out.push(t.slice(last).trim()); return out; };
     const beatsOf = (t) => {
       const m = t.match(/^([\s\S]*?)(?:\s*End frame:\s*([\s\S]*))?$/); const bodyT = (m && m[1] || t).trim(); const endT = (m && m[2] || '').trim();
-      let sents = bodyT.split(/(?<=\.)\s+/).filter(Boolean);
+      let sents = splitSentences(bodyT);
       if (sents.length < 2) { const parts = bodyT.split(/;\s*/); sents = parts.length > 1 ? [parts[0].replace(/\.?$/, '.'), parts.slice(1).join('; ')] : [bodyT]; }
       const cap1 = (x) => x ? x[0].toUpperCase() + x.slice(1) : x;
       return { start: cap1(sents[0]), move: cap1(sents.length > 1 ? sents.slice(1).join(' ') : sents[0]), end: cap1(endT) };

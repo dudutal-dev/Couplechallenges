@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.37';
+  const APP_VERSION = '2026.10.15.38';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1200,8 +1200,9 @@ EXAMPLE corset:
       const imgStyle = (S.promptImg || DEFAULT_PROMPT_IMG).trim();
       return [
         frame,
+        `Pose locked exactly as described above: who stands, kneels or lies and in which direction, where each hand, mouth and body part is. Do not change, simplify or mirror the pose.`,
         `Exactly two people, the man and the woman from the reference image: same faces, hair, bodies, same room and props. Both fully nude unless the scene above says otherwise. The man's penis and testicles are clearly visible, the woman's breasts and vulva are visible. Each has two arms, two legs and five fingers per hand, nothing missing, nothing added. No one and nothing else in the frame.`,
-        imgStyle,
+        imgStyle + (CAT_EN[c.cat] ? ` Tags: ${CAT_EN[c.cat]}, exact pose, two people, full body visible.` : ''),
       ].join('\n');
     }
     lines.splice(0, lines.length, ...lines.filter(Boolean));

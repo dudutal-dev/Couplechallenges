@@ -420,3 +420,6 @@ body.tv-receiver #scr-tv::after{display:none}
 .about .term{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;font-size:.88rem;line-height:1.45}
 .about .term b{display:block;color:var(--gold2);margin-bottom:4px;font-size:.95rem}
 @media (max-width:360px){.about .grid2{grid-template-columns:1fr}}
+
+.cp-row p.shot{color:var(--text);opacity:.85;border-inline-start:2px solid var(--gold);padding-inline-start:8px}
+.cp-row p.shot b{color:var(--gold2)}

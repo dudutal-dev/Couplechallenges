@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.35';
+  const APP_VERSION = '2026.10.15.36';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,7 +19,7 @@
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
     ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
     showSafety: false, eveningAlt: false, vidPref: 'personal',
-    promptStyle: '', promptVideo: '', promptAct: '', promptKeep: '', en: {},
+    promptStyle: '', promptVideo: '', promptAct: '', promptKeep: '', promptImg: '', en: {},
     customIllus: {},
   });
   let S = load();
@@ -1156,6 +1156,7 @@ EXAMPLE corset:
   const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic scene. The two adult characters exactly as in the attached reference image (keep faces, hair, bodies and skin tone identical; the man and the woman from the reference). Setting: the exact room, background, furniture, lighting and props of the reference image, unchanged; only if the reference shows no setting at all, a dark bedroom at night with candlelight, deep red velvet and brass. 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
   const DEFAULT_PROMPT_VIDEO = '10 seconds, one continuous shot, no cuts, no text. Slow push-in on a gimbal, candle flicker on skin, shallow focus, natural breathing. 0-2s: the START position exactly as described. 2-8s: the MOVE, continuous and clearly readable, nothing added. 8-10s: the END FRAME, held still.';
   const CAT_EN = { control: 'dominance and control', sensory: 'sensory play', bondage: 'bondage and restraint', impact: 'impact play (spanking, paddle, flogger)', denial: 'teasing, edging and orgasm control', roleplay: 'role play', oral: 'oral sex', toys: 'toys', words: 'commands and dirty talk', exhibit: 'exhibition and being watched', anal: 'anal play and rimming', feet: 'feet', throat: 'hand on the throat (gesture only, no pressure)', fluids: 'spit and watersports', cum: 'cum play', aftercare: 'aftercare, closing' };
+  const DEFAULT_PROMPT_IMG = 'Photorealistic, candlelit, cinematic, shallow depth of field.';
   const DEFAULT_PROMPT_KEEP = 'Keep from the reference image, unchanged: the two people exactly as they are (faces, hair, skin tone, body shape, body hair, tattoos, jewelry); the full anatomy of both, the man\'s penis and testicles and the woman\'s breasts and vulva, present and visible whenever the pose shows them, never erased, hidden, blurred or covered; and the same room, background, furniture, lighting, colors and props. Change only what the action requires. Forbidden: a different room or background, added or removed objects, added clothing, missing or censored genitals, altered body proportions, extra people.';
   const DEFAULT_PROMPT_ACT = 'Show exactly the ACTION above and nothing else: the same two people, the same positions, the same body parts, the same movement, the same end frame. Do not add people, objects or a different activity; do not cut away, do not change position mid-shot. Both bodies stay complete and anatomically intact throughout, genitals included. The action and the body parts involved stay in frame and unobstructed from the first frame to the last. Any fluid comes from the body part named and nowhere else: urine flows from the genitals (the tip of the cock, or from between the labia), saliva falls from the mouth and lips, semen spurts from the tip of the cock; show the source, the stream or string in the air, and where it lands.';
   function buildPrompt(c, v, kind) {
@@ -1171,7 +1172,8 @@ EXAMPLE corset:
       const m = t.match(/^([\s\S]*?)(?:\s*End frame:\s*([\s\S]*))?$/); const bodyT = (m && m[1] || t).trim(); const endT = (m && m[2] || '').trim();
       let sents = bodyT.split(/(?<=\.)\s+/).filter(Boolean);
       if (sents.length < 2) { const parts = bodyT.split(/;\s*/); sents = parts.length > 1 ? [parts[0].replace(/\.?$/, '.'), parts.slice(1).join('; ')] : [bodyT]; }
-      return { start: sents[0], move: sents.length > 1 ? sents.slice(1).join(' ') : sents[0], end: endT };
+      const cap1 = (x) => x ? x[0].toUpperCase() + x.slice(1) : x;
+      return { start: cap1(sents[0]), move: cap1(sents.length > 1 ? sents.slice(1).join(' ') : sents[0]), end: cap1(endT) };
     };
     const bt = shot ? beatsOf(shot) : null;
     const action = bt
@@ -1191,14 +1193,17 @@ EXAMPLE corset:
       `LOOK: ${style}`,
       `VIDEO: ${video}`,
       `RULES: ${act}`,
-    ] : [
-      keyFrame,
-      essence,
-      `PEOPLE: the man and the woman from the attached reference image, no one else. ${cap(giver)} leads and performs the action on ${recv}; ${recv} is led and follows. ${perf}`,
-      `PRESERVE: ${keep}`,
-      `LOOK: ${style}`,
-      `RULES: ${act}`,
-    ];
+    ] : null;
+    if (kind !== 'video') {
+      // תמונה: קצר וממצה. הפריים עצמו, שורה על האנשים והאנטומיה, סגנון במילים ספורות.
+      const frame = bt ? `${bt.start} ${bt.move}` : (en || `Depict this task (written in Hebrew; translate it and show the act itself): ${e.text}`);
+      const imgStyle = (S.promptImg || DEFAULT_PROMPT_IMG).trim();
+      return [
+        frame,
+        `Exactly two people, the man and the woman from the reference image, with the same faces, hair, bodies and the same room and props as in the reference. Each has two arms, two legs and five fingers per hand; anatomy complete and unaltered, genitals present as the pose shows them. Nothing and no one else in the frame.`,
+        imgStyle,
+      ].join('\n');
+    }
     lines.splice(0, lines.length, ...lines.filter(Boolean));
     return lines.join('\n');
   }
@@ -1306,11 +1311,13 @@ EXAMPLE corset:
     $('#prompt-video').value = S.promptVideo || DEFAULT_PROMPT_VIDEO;
     $('#prompt-act').value = S.promptAct || DEFAULT_PROMPT_ACT;
     $('#prompt-keep').value = S.promptKeep || DEFAULT_PROMPT_KEEP;
+    $('#prompt-img').value = S.promptImg || DEFAULT_PROMPT_IMG;
+    $('#prompt-img').oninput = (e) => { S.promptImg = e.target.value; save(); };
     $('#prompt-keep').oninput = (e) => { S.promptKeep = e.target.value; save(); };
     $('#prompt-act').oninput = (e) => { S.promptAct = e.target.value; save(); };
     $('#prompt-style').oninput = (e) => { S.promptStyle = e.target.value; save(); };
     $('#prompt-video').oninput = (e) => { S.promptVideo = e.target.value; save(); };
-    $('#prompt-reset').onclick = () => { S.promptStyle = ''; S.promptVideo = ''; S.promptAct = ''; S.promptKeep = ''; save(); renderCopyList(); };
+    $('#prompt-reset').onclick = () => { S.promptStyle = ''; S.promptVideo = ''; S.promptAct = ''; S.promptKeep = ''; S.promptImg = ''; save(); renderCopyList(); };
   }
 
   // ---------- אתחול ----------

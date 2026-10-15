@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.36';
+  const APP_VERSION = '2026.10.15.37';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1200,7 +1200,7 @@ EXAMPLE corset:
       const imgStyle = (S.promptImg || DEFAULT_PROMPT_IMG).trim();
       return [
         frame,
-        `Exactly two people, the man and the woman from the reference image, with the same faces, hair, bodies and the same room and props as in the reference. Each has two arms, two legs and five fingers per hand; anatomy complete and unaltered, genitals present as the pose shows them. Nothing and no one else in the frame.`,
+        `Exactly two people, the man and the woman from the reference image: same faces, hair, bodies, same room and props. Both fully nude unless the scene above says otherwise. The man's penis and testicles are clearly visible, the woman's breasts and vulva are visible. Each has two arms, two legs and five fingers per hand, nothing missing, nothing added. No one and nothing else in the frame.`,
         imgStyle,
       ].join('\n');
     }

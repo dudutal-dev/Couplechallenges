@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.42';
+  const APP_VERSION = '2026.10.15.43';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -720,10 +720,11 @@
     if (SAFE_MODE) return null;
     const m = S.media[c.id] || {};
     const v = activeVidSlot(m);
+    // יש סרטון: רק הסרטון. התמונה משמשת כשאין סרטון (או כשמוחקים אותו)
     const i = activeImgSlot(m);
-    const slots = (i ? [i] : []).concat(v ? [v] : []);
+    const slots = v ? [v] : (i ? [i] : []);
     if (!slots.length) return null;
-    return `<div class="${cls} media ${slots.length === 2 ? 'both' : ''}">${slots.map((k) => `<div class="m-${isImgSlot(k) ? 'img' : k}" data-media="${mediaKey(c.id, k)}"></div>`).join('')}</div>`;
+    return `<div class="${cls} media ${v ? 'video' : 'image'}">${slots.map((k) => `<div class="m-${isImgSlot(k) ? 'img' : k}" data-media="${mediaKey(c.id, k)}"></div>`).join('')}</div>`;
   }
   let liveUrls = [];
   function freeUrls() { liveUrls.forEach((u) => URL.revokeObjectURL(u)); liveUrls = []; }
@@ -987,6 +988,7 @@ EXAMPLE corset:
   async function enterTv() {
     tvOn = true; tvView = diceResult && current === 'dice' ? 'dice' : 'card';
     document.body.classList.add('tv-on'); show('tv'); renderTv(); requestWake();
+    if (!$('#tv-rotate')) { const h = document.createElement('div'); h.id = 'tv-rotate'; h.className = 'tv-rotate'; h.innerHTML = '<div>↻</div><p>סובבו את הטלפון לרוחב.<br>כך הטלוויזיה מתמלאת: המשימה והסרטון יחד.</p>'; $('#scr-tv').appendChild(h); }
     try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch { /* iOS */ }
     try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { /* לא נתמך */ }
   }
@@ -1004,7 +1006,7 @@ EXAMPLE corset:
     const art = mediaArtHtml(c, 'tv-art') || `<div class="tv-art">${illus(c.img || cat.img)}</div>`;
     const prog = playMode === 'session' && S.session ? `${S.session.idx + 1} / ${S.session.cards.length}` : 'קלף אקראי';
     return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">${prog}</span><span class="tv-lead">${illus('key')} ${roleName('D')} ${S.partners[S.dom].g === 'm' ? 'מוביל' : 'מובילה'}${alternating() ? ` · הבא: ${roleName('S')}` : ''}</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
-      <div class="tv-main">${art}
+      <div class="tv-main ${/tv-art media video/.test(art) ? 'with-video' : ''}">${art}
         <div class="tv-text"><div class="tv-chips"><span class="chip to">${esc(to)}</span><span class="chip cat">${cat.name}</span>${lashes}</div>
           <p class="tv-p">${render(c.text)}</p>${c.safe && S.showSafety ? `<p class="tv-safe-note">⚠ ${esc(c.safe)}</p>` : ''}</div></div>
       <div class="tv-bar">

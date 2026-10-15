@@ -429,3 +429,19 @@ body.tv-receiver #scr-tv::after{display:none}
 
 .safe-bar{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));z-index:50;background:#5a2a2a;color:#fff;font-size:.85rem;padding:8px 12px;display:flex;gap:10px;align-items:center;justify-content:center}
 .safe-bar button{background:#fff2;border:1px solid #fff5;color:#fff;border-radius:999px;padding:4px 10px;font-size:.8rem}
+
+/* טלוויזיה: סרטון גדול לצד הטקסט, שניהם נראים */
+.tv-main.with-video{grid-template-columns:auto 1fr;gap:2.4cqw;height:66cqh}
+.tv-stage .tv-art.media.video{width:min(54cqw, 110cqh);height:auto;max-width:none;max-height:none;aspect-ratio:16/9;border-radius:1.4cqw;background:#000;justify-self:start}
+.tv-stage.vfull .tv-art.media.video{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;aspect-ratio:auto;border-radius:0;margin:0}
+.tv-art.media.video video{object-fit:contain}
+.tv-main.with-video .tv-p{font-size:2.7cqw}
+.tv-main.with-video .tv-chips .chip{font-size:1.5cqw}
+/* סרטון במסך מלא: הטקסט נשאר כפס תחתון */
+.tv-stage.vfull .tv-text{display:block;position:absolute;left:0;right:0;bottom:22cqh;max-height:34cqh;overflow:hidden;padding:2.4cqw 3.4cqw 1.2cqw;background:linear-gradient(transparent,#000c 30%);z-index:3;pointer-events:none}
+.tv-stage.vfull .tv-p{font-size:2.4cqw;line-height:1.4;text-shadow:0 .2cqw .6cqw #000}
+.tv-stage.vfull .tv-chips{margin-bottom:.8cqw}
+/* רמז לסיבוב המסך כשהטלפון מאונך */
+.tv-rotate{display:none;position:fixed;inset:0;z-index:40;background:#000e;color:var(--gold2);text-align:center;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;font-size:1.1rem;line-height:1.5}
+.tv-rotate div{font-size:3rem;animation:breathe 2s ease-in-out infinite}
+@media (orientation: portrait){ body.tv-on .tv-rotate{display:flex} }

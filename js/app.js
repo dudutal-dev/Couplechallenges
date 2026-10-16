@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.15.46';
+  const APP_VERSION = '2026.10.16.47';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -755,7 +755,7 @@
         el.innerHTML = `<video src="${u}" playsinline controls loop autoplay preload="metadata"></video><button type="button" class="vid-expand" title="הגדלה">⛶</button>`;
         $('.vid-expand', el).addEventListener('click', (ev) => { ev.stopPropagation(); videoFullscreen($('video', el), u); });
         playWithSound($('video', el), el);
-      } else { el.innerHTML = `<img src="${u}" alt="">`; $('img', el).addEventListener('click', () => { const lb = $('#lightbox'); lb.innerHTML = `<img src="${u}" alt="">`; lb.hidden = false; }); }
+      } else { el.innerHTML = `<img src="${u}" alt="">`; $('img', el).addEventListener('click', () => { if (root.id === 'tv-stage') return; const lb = $('#lightbox'); lb.innerHTML = `<img src="${u}" alt="">`; lb.hidden = false; }); }
     }
   }
   // ניגון עם קול. אם הדפדפן חוסם אוטו-פליי עם קול, מנגנים בשקט ומציגים כפתור ״הפעלת קול״ שלחיצה אחת עליו פותחת את הקול
@@ -1006,7 +1006,13 @@ EXAMPLE corset:
   }
 
   // ---------- טלוויזיה: במה 16:9 לשיקוף מסך, ושידור Presentation API ----------
-  let tvOn = false, tvView = 'card', tvConn = null, tvReq = null, tvVideoFull = false;
+  let tvOn = false, tvView = 'card', tvConn = null, tvReq = null, tvVideoFull = false, tvClean = false, tvHintShown = false;
+  // במסך מלא: הקשה על המסך (לא על כפתור) מסתירה או מחזירה את הטקסט והכפתורים
+  document.addEventListener('click', (e) => {
+    const stage = $('#tv-stage'); if (!tvOn || !stage || !stage.classList.contains('vfull')) return;
+    if (!stage.contains(e.target) || e.target.closest('button, .tv-bar, .vid-sound')) return;
+    tvClean = !tvClean; stage.classList.toggle('clean', tvClean);
+  });
   const TV_URL = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html?tv=1';
   const isReceiver = new URLSearchParams(location.search).get('tv') === '1';
   async function enterTv() {
@@ -1041,7 +1047,7 @@ EXAMPLE corset:
         ${playMode === 'session' ? '<button class="tv-btn" data-tv="skip">דילוג</button>' : ''}
         ${c.min ? `<button class="tv-btn" data-tv="timer" data-min="${c.min}">⏱ ${c.min} דק׳</button>` : ''}
         ${typeAvailable(S.media[c.id] || {}, 'personal') && typeAvailable(S.media[c.id] || {}, 'demo') ? `<button class="tv-btn" data-tv="vidpref">${activeVidType(S.media[c.id] || {}) === 'personal' ? 'להדגמה' : 'לסרטון האישי'}</button>` : ''}
-        ${activeVidSlot(S.media[c.id] || {}) ? `<button class="tv-btn" data-tv="vfull">${tvVideoFull ? 'חזרה לכרטיס' : '⛶ סרטון במסך מלא'}</button>` : ''}
+        ${hasMedia(c.id) ? `<button class="tv-btn" data-tv="vfull">${tvVideoFull ? 'חזרה לכרטיס' : (activeVidSlot(S.media[c.id] || {}) ? '⛶ סרטון במסך מלא' : '⛶ תמונה במסך מלא')}</button>` : ''}
         <button class="tv-btn" data-tv="dice">קוביות</button>
         <button class="tv-btn" data-tv="cast" ${'PresentationRequest' in window ? '' : 'hidden'}>${tvConn ? '📡 משודר' : '📡 Chromecast'}</button>
         <button class="tv-btn" data-tv="exit">יציאה</button>
@@ -1078,7 +1084,9 @@ EXAMPLE corset:
     }
     stage.innerHTML = html;
     stage.classList.toggle('vfull', tvVideoFull && tvView === 'card' && !!$('.tv-art.media', stage));
-    hydrateCard(stage).then(() => { if (stage.classList.contains('vfull')) { const v = $('.tv-art.media video', stage); if (v) playWithSound(v, v.parentElement); } });
+    stage.classList.toggle('clean', stage.classList.contains('vfull') && tvClean);
+    hydrateCard(stage).then(() => { if (stage.classList.contains('vfull')) { const v = $('.tv-art.media video', stage); if (v) { v.removeAttribute('controls'); playWithSound(v, v.parentElement); } } });
+    if (stage.classList.contains('vfull') && !tvHintShown) { tvHintShown = true; const h = document.createElement('div'); h.className = 'tv-hint'; h.textContent = 'הקשה על המסך מסתירה את הטקסט והכפתורים. הקשה נוספת מחזירה אותם.'; stage.appendChild(h); setTimeout(() => h.remove(), 4000); }
     timerDraw();
     $$('[data-tv]', stage).forEach((b) => b.addEventListener('click', () => tvAction(b.dataset.tv, b)));
     tvSend();
@@ -1097,7 +1105,7 @@ EXAMPLE corset:
     if (a === 'random') { playMode = 'random'; pickRandom(); tvView = 'card'; return renderTv(); }
     if (a === 'finish') { S.session = null; save(); return renderTv(); }
     if (a === 'cast') return tvCast();
-    if (a === 'vfull') { tvVideoFull = !tvVideoFull; return renderTv(); }
+    if (a === 'vfull') { tvVideoFull = !tvVideoFull; tvClean = false; return renderTv(); }
     if (a === 'vidpref') { S.vidPref = (S.vidPref || 'personal') === 'personal' ? 'demo' : 'personal'; save(); return renderTv(); }
   }
   // שידור ל-Chromecast דרך Presentation API (Chrome באנדרואיד ובמחשב). המקלט הוא אותה אפליקציה עם ?tv=1.

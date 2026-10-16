@@ -383,7 +383,15 @@ body.tv-receiver #scr-tv::after{display:none}
 .tv-stage.vfull .tv-main{display:block;padding:0;height:100%}
 .tv-stage.vfull .tv-art.media{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;border-radius:0;aspect-ratio:auto;box-shadow:none;margin:0;background:#000;z-index:1}
 .tv-stage.vfull .tv-art.media.both{display:block}
-.tv-stage.vfull .tv-art.media .m-img{display:none}
+.tv-stage.vfull .tv-art.media.video .m-img{display:none}
+.tv-stage.vfull .tv-art.media.image .m-img{position:absolute;inset:0;width:100%;height:100%;aspect-ratio:auto;max-height:none;border-radius:0}
+.tv-stage.vfull .tv-art.media.image img{width:100%;height:100%;object-fit:contain;cursor:default}
+.tv-stage.vfull .tv-art.media.image{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;aspect-ratio:auto;border-radius:0;margin:0;background:#000}
+/* מסך מלא נקי: הקשה מסתירה טקסט וכפתורים */
+.tv-stage.vfull.clean .tv-text,.tv-stage.vfull.clean .tv-bar,.tv-stage.vfull.clean .vid-expand{display:none !important}
+.tv-stage.vfull .tv-art.media video{cursor:pointer}
+.tv-hint{position:absolute;top:3cqh;left:50%;transform:translateX(-50%);z-index:5;background:#000c;color:#fff;font-size:1.9cqw;padding:1cqw 2.4cqw;border-radius:999px;white-space:nowrap;pointer-events:none;animation:tvhint 4s forwards}
+@keyframes tvhint{0%,75%{opacity:1}100%{opacity:0}}
 .tv-stage.vfull .tv-art.media .m-vidA,.tv-stage.vfull .tv-art.media .m-vidB,.tv-stage.vfull .tv-art.media .m-demoA,.tv-stage.vfull .tv-art.media .m-demoB{position:absolute;inset:0;width:100%;height:100%;max-height:none;aspect-ratio:auto;border-radius:0;box-shadow:none}
 .tv-stage.vfull .tv-art.media video{object-fit:contain;width:100%;height:100%}
 .tv-stage.vfull .vid-expand{display:none}

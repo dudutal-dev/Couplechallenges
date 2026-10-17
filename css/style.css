@@ -472,3 +472,5 @@ html[dir=ltr] .cp-row p.en{direction:ltr}
 html[dir=ltr] .vid-sound{inset-inline-end:10px}
 .top.row .btn{flex:0 0 auto}
 .top.row h1{flex:1;min-width:0}
+
+.prompt-box{width:100%;box-sizing:border-box;margin-top:8px;font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px;resize:vertical;text-align:left;direction:ltr;unicode-bidi:plaintext}

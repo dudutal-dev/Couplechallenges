@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.17.49';
+  const APP_VERSION = '2026.10.17.50';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1272,6 +1272,17 @@ EXAMPLE corset:
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
     else fallbackCopy(text, done);
   }
+  // פרומפט: מעתיקים, ומציגים גם בחלון כדי לראות בדיוק מה הועתק, עם שיתוף ישיר והעתקה חוזרת (אם ההדבקה יצאה משובשת)
+  function promptDialog(text, kind, btn) {
+    copyText(text, btn);
+    const en = isEn();
+    const title = kind === 'video' ? (en ? 'Video prompt' : 'פרומפט סרטון') : (en ? 'Image prompt' : 'פרומפט תמונה');
+    const note = en ? 'Copied to the clipboard. Paste it into the generator together with the image. If the paste comes out garbled, use Share, or select and copy from the box.' : 'הועתק ללוח. מדביקים במחולל יחד עם התמונה. אם ההדבקה יוצאת משובשת, משתפים ישירות או מסמנים ומעתיקים מהתיבה.';
+    const btns = [{ label: en ? 'Copy again' : 'העתקה שוב', cls: 'primary', onClick: (card) => { const ta = $('textarea', card); try { ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); } catch { /* */ } copyText(text); return true; } }];
+    if (navigator.share) btns.push({ label: en ? 'Share…' : 'שיתוף…', onClick: () => { navigator.share({ text }).catch(() => {}); return true; } });
+    btns.push({ label: en ? 'Close' : 'סגירה' });
+    dialog(`<h2>${title}</h2><p class="muted tiny">${note}</p><textarea class="prompt-box" dir="ltr" rows="9" readonly spellcheck="false">${esc(text)}</textarea>`, btns);
+  }
   function fallbackCopy(text, done) {
     const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
     try { document.execCommand('copy'); done(); } catch { dialog(`<h2>העתקה ידנית</h2><textarea rows="6" style="width:100%">${esc(text)}</textarea>`, [{ label: 'סגירה' }]); }
@@ -1436,7 +1447,7 @@ EXAMPLE corset:
     $$('[data-copy]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copy, b)));
     $$('[data-copy-all]', host).forEach((b) => b.addEventListener('click', () => copyText(b.dataset.copyAll, b)));
     $$('[data-media]', host).forEach((b) => b.addEventListener('click', () => { const y = window.scrollY; mediaSlotDialog(b.dataset.id, b.dataset.media, () => { renderCopyList(); window.scrollTo(0, y); }); }));
-    $$('[data-prompt]', host).forEach((b) => b.addEventListener('click', () => { const c = cardById(b.dataset.id), v = COPY_CTX.find((x) => x.key === b.dataset.v); if (c && v) copyText(buildPrompt(c, v, b.dataset.prompt), b); }));
+    $$('[data-prompt]', host).forEach((b) => b.addEventListener('click', () => { const c = cardById(b.dataset.id), v = COPY_CTX.find((x) => x.key === b.dataset.v); if (c && v) promptDialog(buildPrompt(c, v, b.dataset.prompt), b.dataset.prompt, b); }));
     // הגדרות הפרומפט
     $('#prompt-style').value = S.promptStyle || DEFAULT_PROMPT_STYLE;
     $('#prompt-video').value = S.promptVideo || DEFAULT_PROMPT_VIDEO;

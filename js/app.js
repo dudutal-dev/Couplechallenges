@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.16.47';
+  const APP_VERSION = '2026.10.17.48';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,6 +26,75 @@
   function load() { try { const j = JSON.parse(localStorage.getItem(KEY)); return j ? Object.assign(DEFAULT(), j) : DEFAULT(); } catch { return DEFAULT(); } }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* מלא */ } }
 
+  // ---------- שפה: עברית (ברירת מחדל) או אנגלית ----------
+  // הממשק מתורגם ברמת ה-DOM: כל צומת טקסט בעברית מוחלף לפי המילון ב-js/i18n.js (התאמה מדויקת, ואז דפוסים).
+  // טקסט המשימות באנגלית מגיע מ-CARDS_EN. החלפת שפה שומרת וטוענת מחדש.
+  const LANG = () => (S.lang === 'en' ? 'en' : 'he');
+  const isEn = () => LANG() === 'en';
+  const I18 = typeof I18N !== 'undefined' ? I18N : { dict: {}, rx: [], about: null, roles: {}, name: '' };
+  const RX_C = (I18.rx || []).map(([pt, r]) => [new RegExp(pt), r]);
+  const HEB_RE = /[֐-׿]/;
+  function tr(str, depth = 0) {
+    if (!isEn() || !str) return null;
+    const k = String(str).replace(/\s+/g, ' ').trim();
+    if (!k || !HEB_RE.test(k)) return null;
+    if (I18.dict[k] !== undefined) return I18.dict[k];
+    if (depth > 3) return null;
+    for (const [re, repl] of RX_C) {
+      const m = k.match(re);
+      if (m) return repl.replace(/\$(\d)/g, (x, i) => { const g = m[+i] || ''; return tr(g, depth + 1) || g; });
+    }
+    return null;
+  }
+  const t = (str) => tr(str) || str;
+  const i18nOrig = new WeakMap(), i18nSet = new WeakMap();
+  const I18N_ATTRS = ['placeholder', 'title', 'aria-label'];
+  function i18nText(n) {
+    if (!i18nOrig.has(n)) i18nOrig.set(n, n.nodeValue);
+    const o = i18nOrig.get(n); if (!HEB_RE.test(o)) return;
+    const par = n.parentNode; if (!par || par.nodeType !== 1 || /^(SCRIPT|STYLE|TEXTAREA)$/.test(par.tagName) || par.closest('.notranslate')) return;
+    const x = tr(o); if (x === null) return;
+    const v = o.match(/^\s*/)[0] + x + o.match(/\s*$/)[0];
+    if (n.nodeValue !== v) { i18nSet.set(n, v); n.nodeValue = v; }
+  }
+  function i18nEl(el) {
+    for (const a of I18N_ATTRS) {
+      if (!el.hasAttribute(a)) continue;
+      const ok = 'data-i18n-' + a; if (!el.hasAttribute(ok)) el.setAttribute(ok, el.getAttribute(a));
+      const o = el.getAttribute(ok), v = tr(o) || o; if (el.getAttribute(a) !== v) el.setAttribute(a, v);
+    }
+  }
+  function i18nWalk(rootNode) {
+    if (!rootNode) return;
+    if (rootNode.nodeType === 3) return i18nText(rootNode);
+    if (rootNode.nodeType !== 1) return;
+    i18nEl(rootNode); rootNode.querySelectorAll('[placeholder],[title],[aria-label]').forEach(i18nEl);
+    const w = document.createTreeWalker(rootNode, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) i18nText(n);
+  }
+  let i18nObs = null;
+  function i18nStart() {
+    if (i18nObs) return;
+    i18nObs = new MutationObserver((muts) => {
+      for (const m of muts) {
+        if (m.type === 'childList') m.addedNodes.forEach((n) => i18nWalk(n));
+        else if (m.type === 'characterData') { const n = m.target; if (i18nSet.get(n) === n.nodeValue) continue; i18nOrig.set(n, n.nodeValue); i18nText(n); }
+        else if (m.type === 'attributes') { const el = m.target, a = m.attributeName, ok = 'data-i18n-' + a; const cur = el.getAttribute(a); if (cur === null) continue; const prev = el.getAttribute(ok); if (prev !== null && (tr(prev) || prev) === cur) continue; el.setAttribute(ok, cur); i18nEl(el); }
+      }
+    });
+    i18nObs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: I18N_ATTRS });
+  }
+  function applyLang() {
+    document.documentElement.lang = LANG(); document.documentElement.dir = isEn() ? 'ltr' : 'rtl';
+    document.body.classList.toggle('en', isEn());
+    if (!isEn()) return;
+    if (I18.name) document.title = I18.name;
+    const ab = $('#scr-about .prose.about'); if (ab && I18.about) { ab.innerHTML = I18.about.html; const h = $('#scr-about header h1'); if (h) h.textContent = I18.about.title; }
+    i18nWalk(document.body); i18nStart();
+  }
+  function setLang(l) { if (l === LANG()) return; S.lang = l; if (!S.setupDone && (S.safeword === DEFAULT().safeword || S.safeword === I18.stop)) S.safeword = l === 'en' ? I18.stop : DEFAULT().safeword; save(); location.reload(); }
+  function langSegHtml(cls = '') { return `<div class="seg lang-seg ${cls}"><button type="button" data-lang="he" class="${isEn() ? '' : 'on'}">עברית</button><button type="button" data-lang="en" class="${isEn() ? 'on' : ''}">English</button></div>`; }
+  function wireLang(rootEl) { $$('[data-lang]', rootEl || document).forEach((b) => { if (b.dataset.wired) return; b.dataset.wired = '1'; b.addEventListener('click', () => setLang(b.dataset.lang)); }); }
+
   // ---------- מילון ----------
   const sub = () => (S.dom === 'a' ? 'b' : 'a');
   const pname = (k) => S.partners[k].name.trim();
@@ -33,8 +102,8 @@
     const k = role === 'D' ? S.dom : sub();
     const p = S.partners[k];
     if (pname(k)) return pname(k);
-    if (role === 'D') return p.g === 'm' ? 'המוביל' : 'המובילה';
-    return p.g === 'm' ? 'המובל' : 'המובלת';
+    if (role === 'D') return isEn() ? I18.roles.D : (p.g === 'm' ? 'המוביל' : 'המובילה');
+    return isEn() ? I18.roles.S : (p.g === 'm' ? 'המובל' : 'המובלת');
   };
   const ctx = () => ({ D: roleName('D'), S: roleName('S'), dg: S.partners[S.dom].g, sg: S.partners[sub()].g });
   function render(text, c = ctx()) {
@@ -52,6 +121,17 @@
     } while (out !== prev);
     return out;
   }
+  // טקסט הכרטיס: באנגלית מתוך CARDS_EN (עם השמות), ולמשימות שהוספתם מתוך התרגום השמור; אחרת עברית
+  function cardText(c) {
+    if (isEn()) {
+      if (typeof CARDS_EN !== 'undefined' && CARDS_EN[c.id]) return render(CARDS_EN[c.id]);
+      const e = (S.en || {})[c.id + ':' + (S.partners[S.dom].g === 'm' ? 'm' : 'f')]; if (e && e.t) return esc(e.t);
+    }
+    return render(c.text);
+  }
+  const diceSentence = (r) => isEn()
+    ? `<b>${roleName('D')}</b>: ${esc(t(r.action.t))} <b>${esc(t(r.body.t))}</b> of ${roleName('S')}, ${esc(t(r.time.t))}.`
+    : `<b>${roleName('D')}</b>: ${esc(r.action.t)} <b>${esc(r.body.t)}</b> של ${roleName('S')}, ${esc(r.time.t)}.`;
   const catOf = (id) => CATEGORIES.find((c) => c.id === id);
   const allCards = () => CARDS.concat(S.custom);
   const cardById = (id) => allCards().find((c) => c.id === id);
@@ -188,6 +268,7 @@
     if (setupStep === 0) {
       body.innerHTML = `
         <div class="hero">
+          ${langSegHtml('hero-lang')}
           <div class="home-emblem"><svg class="il"><use href="#il-ring"/></svg></div>
           <h1 class="brand center">קטיפה</h1>
           <p class="tagline">שליטה. אמון. אש.</p>
@@ -202,6 +283,7 @@
           <p class="muted tiny center">הכול נשמר רק בטלפון הזה. אין חשבון, אין שרת, אין איסוף נתונים.</p>
         </div>`;
       $('#su-next').addEventListener('click', () => { setupStep = 1; renderSetup(); });
+      wireLang(body);
       $('#su-about').addEventListener('click', () => show('about'));
     } else if (setupStep === 1) {
       const p = draft.partners;
@@ -402,7 +484,7 @@
   }
   function cardHtml(c, big = true) {
     const cat = c.cat === AFTERCARE_ID ? { name: 'אחרי', img: 'blanket' } : catOf(c.cat);
-    const to = c.to === 'B' ? 'לשניכם' : 'ל' + roleName(c.to);
+    const to = c.to === 'B' ? 'לשניכם' : (isEn() ? 'For ' : 'ל') + roleName(c.to);
     const dots = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((i) => `<i class="${i <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
     const who = c.to === 'B' ? null : (c.to === 'D' ? S.dom : sub());
     const av = who && S.avatars[who] ? avatarHtml(who, 'sm') : '';
@@ -410,7 +492,7 @@
     return `<article class="card cat-${c.cat} ${big ? 'big' : ''}">
       <header><span class="chip to">${av}${esc(to)}</span><span class="chip cat">${cat.name}</span>${dots}</header>
       ${art}${big ? vidToggleHtml(S.media[c.id] || {}) : ''}
-      <p class="text">${render(c.text)}</p>
+      <p class="text">${cardText(c)}</p>
       ${c.safe && S.showSafety ? `<p class="safe">⚠ ${esc(c.safe)}</p>` : ''}
       ${c.min ? `<button class="btn timer-btn" data-min="${c.min}">${illus('stopwatch')} ${c.min} דקות</button>` : ''}
       <div class="card-timer" hidden><span class="t"></span><button class="btn small ghost stop-t">עצירת טיימר</button></div>
@@ -505,7 +587,7 @@
     const r = diceResult || { action: sets.action[0], body: sets.body[0], time: sets.time[0] };
     $('#dice-row').innerHTML = [['action', 'פעולה', r.action.img || 'hand'], ['body', 'איפה', 'figure'], ['time', 'כמה', 'stopwatch']].map(([k, label, img]) =>
       `<div class="die ${animate ? 'spin' : ''}" data-k="${k}">${illus(img)}<small>${label}</small><b>${esc(r[k].t)}</b></div>`).join('');
-    $('#dice-sentence').innerHTML = diceResult ? `<b>${roleName('D')}</b>: ${esc(r.action.t)} <b>${esc(r.body.t)}</b> של ${roleName('S')}, ${esc(r.time.t)}.` : 'לחצו ״גלגלו״.';
+    $('#dice-sentence').innerHTML = diceResult ? diceSentence(r) : 'לחצו ״גלגלו״.';
     $('#dice-timer').hidden = !(diceResult && r.time.sec);
   }
   $('#dice-roll').addEventListener('click', () => {
@@ -558,6 +640,7 @@
 
   // ---------- עוד ----------
   function renderMore() {
+    wireLang($('#scr-more')); $$('#scr-more [data-lang]').forEach((b) => b.classList.toggle('on', b.dataset.lang === LANG()));
     $('#opt-awake').checked = S.keepAwake; $('#opt-sound').checked = !S.videoMuted; $('#opt-maybe').checked = S.includeMaybe; $('#opt-safety').checked = !!S.showSafety;
     $('#pin-label').textContent = S.pinHash ? 'קוד נעילה: פעיל' : 'קוד נעילה: כבוי';
     $('#tts-label').textContent = 'הקראת כרטיסים: ' + (S.tts.mode === 'off' ? 'כבויה' : S.tts.mode === 'browser' ? 'קול הדפדפן' : 'ElevenLabs');
@@ -632,7 +715,7 @@
       const hid = S.hidden.includes(c.id), fav = S.favorites.includes(c.id), m = S.media[c.id] || {};
       return `<div class="ed-row ${hid ? 'hid' : ''}" data-id="${c.id}">
         <div class="ed-art">${illus(c.img || cat.img)}</div>
-        <div class="ed-main"><small>עוצמה ${c.lvl || 'אחרי'} · ${c.to === 'B' ? 'שניכם' : c.to === 'D' ? 'מוביל/ה' : 'מובל/ת'}${c.id.startsWith('u_') ? ' · שלנו' : ''}</small><p>${render(c.text)}</p>
+        <div class="ed-main"><small>עוצמה ${c.lvl || 'אחרי'} · ${c.to === 'B' ? 'שניכם' : c.to === 'D' ? 'מוביל/ה' : 'מובל/ת'}${c.id.startsWith('u_') ? ' · שלנו' : ''}</small><p>${cardText(c)}</p>
           <div class="ed-media"><small class="muted">${hasMedia(c.id) ? '🖼🎬 יש מדיה · ' : ''}העלאת תמונות וסרטונים: ב״להעתקה ופרומפטים״</small></div></div>
         <div class="ed-btns">
           <button class="icon ${fav ? 'on' : ''}" data-act="fav" title="מועדף">${fav ? '★' : '☆'}</button>
@@ -832,13 +915,13 @@
   }
 
   // ---------- הקראה (קול הדפדפן או ElevenLabs) ----------
-  function plainText(c) { const d = document.createElement('div'); d.innerHTML = render(c.text); return d.textContent; }
+  function plainText(c) { const d = document.createElement('div'); d.innerHTML = cardText(c); return d.textContent; }
   let audioEl = null;
   function stopSpeech() { if (window.speechSynthesis) speechSynthesis.cancel(); if (audioEl) { audioEl.pause(); audioEl = null; } }
   function speakBrowser(text) {
     if (!window.speechSynthesis) { dialog('<h2>אין הקראה</h2><p>הדפדפן הזה לא תומך בהקראה.</p>', [{ label: 'סגירה' }]); return; }
-    const u = new SpeechSynthesisUtterance(text); u.lang = 'he-IL'; u.rate = 0.92;
-    const v = speechSynthesis.getVoices().find((x) => /he/i.test(x.lang)); if (v) u.voice = v;
+    const u = new SpeechSynthesisUtterance(text); u.lang = isEn() ? 'en-US' : 'he-IL'; u.rate = 0.92;
+    const v = speechSynthesis.getVoices().find((x) => (isEn() ? /^en/i : /he/i).test(x.lang)); if (v) u.voice = v;
     speechSynthesis.cancel(); speechSynthesis.speak(u);
   }
   async function speakEleven(text) {
@@ -885,7 +968,7 @@
     $('#tts-key').oninput = (e) => { t.key = e.target.value.trim(); save(); };
     $('#tts-voice').oninput = (e) => { t.voiceId = e.target.value.trim(); save(); };
     $('#tts-model').onchange = (e) => { t.model = e.target.value; save(); };
-    $('#tts-test').addEventListener('click', () => speak(`${roleName('S')}, על הברכיים. ידיים מאחורי הגב. ${roleName('D')} ${S.partners[S.dom].g === 'm' ? 'מחליט' : 'מחליטה'} מתי ממשיכים.`));
+    $('#tts-test').addEventListener('click', () => speak(isEn() ? `${roleName('S')}, on your knees. Hands behind your back. ${roleName('D')} decides when you continue.` : `${roleName('S')}, על הברכיים. ידיים מאחורי הגב. ${roleName('D')} ${S.partners[S.dom].g === 'm' ? 'מחליט' : 'מחליטה'} מתי ממשיכים.`));
     $('#tts-clear').addEventListener('click', () => Media.clearAudio().then(() => dialog('<h2>נמחק</h2>', [{ label: 'סגירה' }])));
   }
 
@@ -1033,14 +1116,14 @@ EXAMPLE corset:
   }
   function tvCardView(c) {
     const cat = c.cat === AFTERCARE_ID ? { name: 'אחרי', img: 'blanket' } : catOf(c.cat);
-    const to = c.to === 'B' ? 'לשניכם' : 'ל' + roleName(c.to);
+    const to = c.to === 'B' ? 'לשניכם' : (isEn() ? 'For ' : 'ל') + roleName(c.to);
     const lashes = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((i) => `<i class="${i <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
     const art = mediaArtHtml(c, 'tv-art') || `<div class="tv-art">${illus(c.img || cat.img)}</div>`;
     const prog = playMode === 'session' && S.session ? `${S.session.idx + 1} / ${S.session.cards.length}` : 'קלף אקראי';
     return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">${prog}</span><span class="tv-lead">${illus('key')} ${roleName('D')} ${S.partners[S.dom].g === 'm' ? 'מוביל' : 'מובילה'}${alternating() ? ` · הבא: ${roleName('S')}` : ''}</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
       <div class="tv-main ${/tv-art media video/.test(art) ? 'with-video' : ''}">${art}
         <div class="tv-text"><div class="tv-chips"><span class="chip to">${esc(to)}</span><span class="chip cat">${cat.name}</span>${lashes}</div>
-          <p class="tv-p">${render(c.text)}</p>${c.safe && S.showSafety ? `<p class="tv-safe-note">⚠ ${esc(c.safe)}</p>` : ''}</div></div>
+          <p class="tv-p">${cardText(c)}</p>${c.safe && S.showSafety ? `<p class="tv-safe-note">⚠ ${esc(c.safe)}</p>` : ''}</div></div>
       <div class="tv-bar">
         <button class="tv-btn stop" data-tv="stop">עצור</button>
         <button class="tv-btn primary" data-tv="next">${playMode === 'session' ? 'בוצע, הבא' : 'קלף אחר'}</button>
@@ -1058,7 +1141,7 @@ EXAMPLE corset:
     return `<div class="tv-top"><span class="tv-brand">קטיפה</span><span class="tv-prog">קוביות</span><span class="tv-timer" id="tv-timer"></span><span class="tv-safe">מילת העצירה: ${esc(S.safeword)}</span></div>
       <div class="tv-dice">${[['action', 'פעולה', r.action.img || 'hand'], ['body', 'איפה', 'figure'], ['time', 'כמה', 'stopwatch']].map(([k, l, img]) =>
         `<div class="die ${rolling ? 'spin' : ''}">${illus(img)}<small>${l}</small><b>${esc(r[k].t)}</b></div>`).join('')}</div>
-      <p class="tv-sentence">${diceResult ? `<b>${roleName('D')}</b>: ${esc(r.action.t)} <b>${esc(r.body.t)}</b> של ${roleName('S')}, ${esc(r.time.t)}.` : 'לחצו ״גלגלו״.'}</p>
+      <p class="tv-sentence">${diceResult ? diceSentence(r) : 'לחצו ״גלגלו״.'}</p>
       <div class="tv-bar">
         <button class="tv-btn stop" data-tv="stop">עצור</button>
         <button class="tv-btn primary" data-tv="roll">גלגלו</button>
@@ -1318,8 +1401,8 @@ EXAMPLE corset:
     host.innerHTML = groups.map(({ cat, cards }) => {
       const lines = [];
       const rows = cards.map((c, i) => COPY_CTX.map((v) => {
-        const e = entryText(c, v); const line = `${e.text}`; lines.push(line); all.push(line); const en = enFor(c, v), shot = shotFor(c, v); if (!en) missing.push({ c, v }); else translated++;
-        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div><p>${esc(e.text)}</p>${en ? `<p class="en" dir="ltr">${esc(en)}</p>` : ''}${shot ? `<p class="en shot" dir="ltr"><b>Shot:</b> ${esc(shot)}</p>` : ''}<div class="cp-actions"><button class="btn ghost small cp-btn" data-copy="${esc(e.text)}">העתקה</button>${en ? `<button class="btn ghost small cp-btn" data-copy="${esc(en)}">English</button>` : ''}<button class="btn ghost small cp-btn" data-prompt="image" data-id="${c.id}" data-v="${v.key}">פרומפט תמונה</button><button class="btn ghost small cp-btn" data-prompt="video" data-id="${c.id}" data-v="${v.key}">פרומפט סרטון</button></div><div class="cp-actions cp-media">${mediaBtnsHtml(c, v)}</div></div>`;
+        const e = entryText(c, v); const en = enFor(c, v), shot = shotFor(c, v); const line = isEn() && en ? en : `${e.text}`; lines.push(line); all.push(line); if (!en) missing.push({ c, v }); else translated++;
+        return `<div class="cp-row"><div class="cp-head"><span class="chip ${v.key === 'm' ? 'cat' : 'to'}">${v.label}</span><small>הוראה ${e.who} · עוצמה ${c.lvl || 'אחרי'}</small></div>${isEn() && en ? '' : `<p>${esc(e.text)}</p>`}${en ? `<p class="en" dir="ltr">${esc(en)}</p>` : ''}${shot ? `<p class="en shot" dir="ltr"><b>Shot:</b> ${esc(shot)}</p>` : ''}<div class="cp-actions"><button class="btn ghost small cp-btn" data-copy="${esc(isEn() && en ? en : e.text)}">העתקה</button>${en && !isEn() ? `<button class="btn ghost small cp-btn" data-copy="${esc(en)}">English</button>` : ''}<button class="btn ghost small cp-btn" data-prompt="image" data-id="${c.id}" data-v="${v.key}">פרומפט תמונה</button><button class="btn ghost small cp-btn" data-prompt="video" data-id="${c.id}" data-v="${v.key}">פרומפט סרטון</button></div><div class="cp-actions cp-media">${mediaBtnsHtml(c, v)}</div></div>`;
       }).join('')).join('');
       return `<section class="cp-group" data-cat="${cat.id}"><div class="cp-group-head">${illus(cat.img)}<h2>${cat.name}</h2><small>${cards.length} משימות × 2</small><button class="btn ghost small" data-copy-all="${esc(lines.join('\n\n'))}">העתקת הקטגוריה</button></div>${rows}</section>`;
     }).join('');
@@ -1345,7 +1428,7 @@ EXAMPLE corset:
     const allPrompts = (kind) => groups.flatMap(({ cat, cards }) => cards.flatMap((c) => COPY_CTX.map((v) => `### ${cat.name} · ${v.label}\n${buildPrompt(c, v, kind)}`))).join('\n\n');
     $('#list-copy-videos').onclick = (e) => copyText(allPrompts('video'), e.currentTarget);
     $('#list-download').onclick = () => {
-      const txt = `קטיפה – פרומפטים לסרטונים (${new Date().toLocaleDateString('he-IL')})\n\n` + allPrompts('video');
+      const txt = `${t('קטיפה – פרומפטים לסרטונים')} (${new Date().toLocaleDateString(isEn() ? 'en-US' : 'he-IL')})\n\n` + allPrompts('video');
       const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' }); const u = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = u; a.download = 'ktifa-video-prompts' + (listCat === 'all' ? '' : '-' + listCat) + '.txt'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 2000);
     };
@@ -1371,6 +1454,7 @@ EXAMPLE corset:
   const SAFE_MODE = (() => { try { return sessionStorage.getItem('safe') === '1' || location.search.includes('safe=1'); } catch { return false; } })();
   const delay = (ms) => new Promise((r) => setTimeout(r, ms));
   async function init() {
+    applyLang();
     $('#sprite').innerHTML = illustrationSprite();
     Object.entries(S.customIllus || {}).forEach(([id, body]) => addCustomIllustration(id, body));
     buildPad();

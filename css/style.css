@@ -460,3 +460,15 @@ body.tv-receiver .tv-rotate{display:none !important}
 
 .vid-sound{position:absolute;bottom:10px;inset-inline-end:10px;z-index:3;background:#000c;border:1px solid var(--gold);color:var(--gold2);border-radius:999px;padding:8px 14px;font-size:.9rem}
 .tv-art .vid-sound{font-size:1.6cqw;padding:.8cqw 1.6cqw;bottom:1cqw;inset-inline-end:1cqw}
+
+/* שפה: מתג וכיוון LTR לאנגלית */
+.lang-row .lang-seg{margin:0;margin-inline-start:auto;padding:3px;gap:4px;min-width:170px}
+.lang-row .lang-seg button{padding:7px 10px;font-size:.9rem}
+.hero .lang-seg{width:min(100%,220px);margin:0 auto 10px}
+.hero .lang-seg button{padding:7px 8px;font-size:.9rem}
+html[dir=ltr] .btn.back{letter-spacing:0}
+html[dir=ltr] .card .text,html[dir=ltr] .prose,html[dir=ltr] .tv-p,html[dir=ltr] .cp-row p{text-align:left}
+html[dir=ltr] .cp-row p.en{direction:ltr}
+html[dir=ltr] .vid-sound{inset-inline-end:10px}
+.top.row .btn{flex:0 0 auto}
+.top.row h1{flex:1;min-width:0}

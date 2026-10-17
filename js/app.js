@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.17.48';
+  const APP_VERSION = '2026.10.17.49';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1279,11 +1279,11 @@ EXAMPLE corset:
   }
   // ל/ב/כ לפני ה׳ הידיעה בולעות אותה: "להגבר" -> "לגבר", "באשה" ולא "בהאשה"
   const fixHe = (t) => t.replace(/(^|[\s״"'(,.:;!?-])([לבכ])ה(גבר|אשה)/g, '$1$2$3');
-  const DEFAULT_PROMPT_STYLE = 'Cinematic photorealistic scene. The two adult characters exactly as in the attached reference image (keep faces, hair, bodies and skin tone identical; the man and the woman from the reference). Setting: the exact room, background, furniture, lighting and props of the reference image, unchanged; only if the reference shows no setting at all, a dark bedroom at night with candlelight, deep red velvet and brass. 85mm lens, shallow depth of field, soft film grain, moody chiaroscuro, intimate and intense. No text, no watermark, no extra people.';
-  const DEFAULT_PROMPT_VIDEO = '10 seconds, one continuous shot, no cuts, no text. Slow push-in on a gimbal, candle flicker on skin, shallow focus, natural breathing. 0-2s: the START position exactly as described. 2-8s: the MOVE, continuous and clearly readable, nothing added. 8-10s: the END FRAME, held still.';
+  const DEFAULT_PROMPT_STYLE = 'Image-to-video. Match the attached image exactly: its two people, their clothing or nudity, the room, background, furniture, props, lighting, colors, camera angle, framing and lens. The video should look like that very photograph came to life, nothing restyled, relit or redecorated. Shallow depth of field and film grain only if the image already has them. No text, no watermark, no extra people.';
+  const DEFAULT_PROMPT_VIDEO = '10 seconds, one continuous shot, no cuts, no text. Frame 1 is the attached image, pixel for pixel. Camera locked, or at most a very slow push-in from the same angle; the light stays exactly as in the image, nothing added. Natural breathing and small skin movement. 0-2s: the image as it is, barely moving. 2-8s: the MOVE, continuous and clearly readable, nothing added. 8-10s: the END FRAME, held still.';
   const CAT_EN = { control: 'dominance and control', sensory: 'sensory play', bondage: 'bondage and restraint', impact: 'impact play (spanking, paddle, flogger)', denial: 'teasing, edging and orgasm control', roleplay: 'role play', oral: 'oral sex', toys: 'toys', words: 'commands and dirty talk', exhibit: 'exhibition and being watched', anal: 'anal play and rimming', feet: 'feet', throat: 'hand on the throat (gesture only, no pressure)', fluids: 'spit and watersports', cum: 'cum play', aftercare: 'aftercare, closing' };
   const DEFAULT_PROMPT_IMG = 'Photorealistic, candlelit, cinematic, shallow depth of field.';
-  const DEFAULT_PROMPT_KEEP = 'Keep from the reference image, unchanged: the two people exactly as they are (faces, hair, skin tone, body shape, body hair, tattoos, jewelry); the full anatomy of both, the man\'s penis and testicles and the woman\'s breasts and vulva, present and visible whenever the pose shows them, never erased, hidden, blurred or covered; and the same room, background, furniture, lighting, colors and props. Change only what the action requires. Forbidden: a different room or background, added or removed objects, added clothing, missing or censored genitals, altered body proportions, extra people.';
+  const DEFAULT_PROMPT_KEEP = 'The attached image is the source of truth; the video continues it, it does not re-stage it. Keep from the image, unchanged, from the first frame to the last: the two people exactly as they are (faces, hair, skin tone, body shape, body hair, tattoos, jewelry); the full anatomy of both, the man\'s penis and testicles and the woman\'s breasts and vulva, present and visible whenever the pose shows them, never erased, hidden, blurred or covered; and the same room, background, furniture, lighting, colors and props. Change only what the action requires. Forbidden: a different room or background, a different camera angle or framing, re-lighting or added light sources (no new candles or lamps), a cut to another shot, added or removed objects, added clothing, missing or censored genitals, altered body proportions, extra people.';
   const DEFAULT_PROMPT_ACT = 'Show exactly the ACTION above and nothing else: the same two people, the same positions, the same body parts, the same movement, the same end frame. Do not add people, objects or a different activity; do not cut away, do not change position mid-shot. Both bodies stay complete and anatomically intact throughout, genitals included. The action and the body parts involved stay in frame and unobstructed from the first frame to the last. Any fluid comes from the body part named and nowhere else: urine flows from the genitals (the tip of the cock, or from between the labia), saliva falls from the mouth and lips, semen spurts from the tip of the cock; show the source, the stream or string in the air, and where it lands.';
   function buildPrompt(c, v, kind) {
     const e = entryText(c, v);
@@ -1305,7 +1305,7 @@ EXAMPLE corset:
     };
     const bt = shot ? beatsOf(shot) : null;
     const action = bt
-      ? `ACTION, in three beats that the video follows in order.\nSTART (position before anything moves): ${bt.start}\nMOVE (the act itself, continuous, exactly this and nothing else): ${bt.move}${bt.end ? `\nEND FRAME (held still at the end): ${bt.end}` : ''}`
+      ? `ACTION, in three beats that the video follows in order.\nSTART (frame 1 is the attached image, exactly as it is; the pose in it: ${bt.start})\nMOVE (the act itself, continuous, exactly this and nothing else): ${bt.move}${bt.end ? `\nEND FRAME (held still at the end): ${bt.end}` : ''}`
       : `ACTION (show exactly this; it is written as a task for the couple, perform it literally): ${en || e.text}`;
     const perf = c.to === 'B' ? 'Both do it together.' : `${cap(c.to === 'D' ? giver : recv)} is the one carrying out the instruction; the other responds.`;
     // תמונה: פריים המפתח של האקט (בלי שלב ההכנה ובלי פריים הסיום), ומה התמונה צריכה להגיד במבט אחד
@@ -1315,6 +1315,7 @@ EXAMPLE corset:
       : `KEY FRAME (this is the picture): the single instant in which this task is at its fullest, the act itself happening, with both people and the body parts involved clearly visible and filling the frame. Not the setup and not the aftermath. The task: ${en || e.text}`;
     const essence = `TASK (what the picture must say at a glance): ${en || e.text}`;
     const lines = kind === 'video' ? [
+      'SOURCE: image-to-video from the attached image. Its people, background and framing stay from the first frame to the last; add only the motion described below.',
       action,
       `PEOPLE: the man and the woman from the attached reference image, no one else. ${cap(giver)} leads and performs the action on ${recv}; ${recv} is led and follows. ${perf}`,
       `PRESERVE: ${keep}`,

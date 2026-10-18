@@ -546,3 +546,6 @@ body.peek-on .music-bar{display:none}
 .peek-top,.peek-cap,.peek-dots,.peek-bar{transition:opacity .25s ease}
 .peek.clean .peek-top,.peek.clean .peek-cap,.peek.clean .peek-dots,.peek.clean .peek-bar{opacity:0;pointer-events:none}
 .peek-hint{position:absolute;top:calc(56px + var(--safe-t));left:50%;transform:translateX(-50%);z-index:4;background:#000c;color:#fff;font-size:.82rem;padding:8px 14px;border-radius:999px;border:1px solid #fff3;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;animation:fade .3s}
+
+.peek-title .pt-word{font-family:var(--serif);font-size:1.6rem;color:var(--gold2);letter-spacing:.02em;margin-top:8px}
+.peek-cap p{font-family:var(--serif);font-size:1.4rem;color:var(--gold2)}

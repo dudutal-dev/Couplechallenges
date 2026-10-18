@@ -123,7 +123,9 @@
   }
   function toggle() { if (!yt) { if (current) play(current); return; } try { if (playing) yt.pauseVideo(); else yt.playVideo(); } catch (e) { /* */ } }
   function next() { if (yt && current && current.kind === 'list') { try { yt.nextVideo(); } catch (e) { /* */ } } }
-  function pause() { if (yt && playing) { try { yt.pauseVideo(); } catch (e) { /* */ } } }
+  // השהיה: לפי המצב האמיתי של הנגן, לא רק לפי הדגל הפנימי (אם אירוע מצב התפספס)
+  const ytPlaying = () => { try { const st = yt && yt.getPlayerState ? yt.getPlayerState() : -1; return st === 1 || st === 3; } catch (e) { return false; } };
+  function pause() { if (yt && (playing || ytPlaying())) { try { yt.pauseVideo(); } catch (e) { /* */ } playing = false; notify(); } }
   function stop() { if (yt) { try { yt.stopVideo(); } catch (e) { /* */ } } playing = false; notify(); showBar(false); paintScreen(); }
   // כשהמוזיקה מתנגנת, סרטוני המשימות מושתקים אוטומטית (האפליקציה מאזינה לאירוע הזה)
   function notify() { try { document.dispatchEvent(new CustomEvent('music:state', { detail: { playing } })); } catch (e) { /* */ } }
@@ -228,5 +230,5 @@
     if (cfg.auto !== 'off' && candidate()) { ensureBar(); setTimeout(loadApi, 1500); }
   }
   function hasSomething() { return favs.length > 0 || !!cfg.last; }
-  window.Music = { init, render, play, pause, stop, toggle, onEveningStart, parse, hasSomething, get current() { return current; }, get playing() { return playing; } };
+  window.Music = { init, render, play, pause, stop, toggle, onEveningStart, parse, hasSomething, get current() { return current; }, get playing() { return playing || ytPlaying(); } };
 })();

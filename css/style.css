@@ -583,3 +583,12 @@ body.peek-on .music-bar{display:none}
 @keyframes pkKb2{from{transform:scale(1.09)}to{transform:scale(1)}}
 .peek-stage .pk-kb2{animation:pkIn .6s ease both,pkKb2 7s linear both}
 .peek-stage .pk-kb{animation-duration:.6s,7s}
+
+/* הורדת הטיזר: מסך הייצור */
+.pk-export{background:#000e;z-index:80;padding:16px}
+.pk-export-card{width:min(92vw,720px);display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center}
+.pk-export-card .pk-canvas{width:100%;height:auto;aspect-ratio:16/9;border-radius:14px;background:#000;border:1px solid var(--line)}
+.pk-export-card h2{margin:4px 0 0;font-family:var(--serif)}
+.pk-export-bar{width:100%;height:4px;border-radius:2px;background:#fff2;overflow:hidden}
+.pk-export-bar i{display:block;height:100%;width:0;background:var(--gold2);transition:width .4s linear}
+.peek-end .btn.dl{background:transparent;border-style:dashed}

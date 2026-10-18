@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.66';
+  const APP_VERSION = '2026.10.18.67';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -503,11 +503,11 @@
   function peekEl() {
     let el = $('#peek'); if (el) return el;
     el = document.createElement('div'); el.id = 'peek'; el.className = 'overlay peek'; el.hidden = true;
-    el.innerHTML = `<div class="peek-stage"></div><div class="peek-word"></div><div class="peek-hint" hidden></div><div class="peek-top"><span class="peek-prog"></span><button type="button" class="btn small ghost" data-pk="close">✕</button></div><div class="peek-dots"></div><div class="peek-bar"><button type="button" class="pk-btn" data-pk="prev">⏮</button><button type="button" class="pk-btn" data-pk="toggle">⏸</button><button type="button" class="pk-btn" data-pk="next">⏭</button></div>`;
+    el.innerHTML = `<div class="peek-stage"></div><div class="peek-word"></div><div class="peek-hint" hidden></div><div class="peek-top"><span class="peek-prog"></span><button type="button" class="btn small ghost" data-pk="close">✕</button></div><div class="peek-dots"></div><div class="peek-bar"><button type="button" class="pk-btn" data-pk="prev">⏮</button><button type="button" class="pk-btn" data-pk="toggle">⏸</button><button type="button" class="pk-btn" data-pk="next">⏭</button><button type="button" class="pk-btn" data-pk="export" title="הורדה">⬇</button></div>`;
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pk]');
-      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') { if (peek.done) peekIntro(); else peekGo(Math.max(0, peek.i - 1)); } else if (a === 'toggle') peekToggle(); else if (a === 'start') { closePeek(); startPlay('session'); } return; }
+      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') { if (peek.done) peekIntro(); else peekGo(Math.max(0, peek.i - 1)); } else if (a === 'toggle') peekToggle(); else if (a === 'start') { closePeek(); startPlay('session'); } else if (a === 'export') exportTeaser(); return; }
       if (e.target.closest('.peek-stage') || e.target.closest('.peek-word')) { if (!peek) return; if (peek.phase === 'intro') peekGo(0); else if (peek.phase === 'media') { clearTimeout(peek.cleanTimer); el.classList.toggle('clean'); } }
     });
     return el;
@@ -558,7 +558,7 @@
       peek.i = items.length; peek.done = true; peek.phase = 'end';
       el.classList.remove('clean'); el.classList.add('end'); $('.peek-word', el).className = 'peek-word';
       droneStop(); boom(1.1);
-      stage.innerHTML = `<div class="peek-end"><div class="home-emblem">${illus('heart')}</div><h1>${isEn() ? 'Tonight.' : 'הערב.'}</h1><p class="lead">${esc(peekTag('end'))}</p><button type="button" class="btn primary big" data-pk="start">${isEn() ? 'Begin' : 'מתחילים'}</button><button type="button" class="btn ghost" data-pk="prev">${isEn() ? 'Watch again' : 'לצפות שוב'}</button></div>`;
+      stage.innerHTML = `<div class="peek-end"><div class="home-emblem">${illus('heart')}</div><h1>${isEn() ? 'Tonight.' : 'הערב.'}</h1><p class="lead">${esc(peekTag('end'))}</p><button type="button" class="btn primary big" data-pk="start">${isEn() ? 'Begin' : 'מתחילים'}</button><button type="button" class="btn ghost" data-pk="prev">${isEn() ? 'Watch again' : 'לצפות שוב'}</button><button type="button" class="btn ghost dl" data-pk="export">⬇ ${isEn() ? 'Download the teaser' : 'הורדת הטיזר למכשיר'}</button></div>`;
       $('.peek-prog', el).textContent = ''; $('.peek-bar', el).hidden = true; $$('.peek-dots i', el).forEach((d) => { d.classList.remove('on'); d.classList.add('done'); }); return;
     }
     if (i < 0) i = 0;
@@ -609,6 +609,121 @@
     const n = S.session.cards.length;
     dialog(`<h2>${isEn() ? 'The evening is ready' : 'הערב מוכן'}</h2><p>${isEn() ? `${n} ${PEEK_UNIT()}, ${items.length} of them with a video or picture. Watch the teaser of the evening ahead?` : `${n} ${PEEK_UNIT()}, ${items.length} מהן עם סרטון או תמונה. לצפות בטיזר של הערב שמצפה לכם?`}</p>`,
       [{ label: isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו', cls: 'primary', onClick: () => { peekAudioInit(); setTimeout(openPeek, 30); } }, { label: isEn() ? 'Straight to the first one' : (APP_ID === 'masks' ? 'ישר לסצנה הראשונה' : 'ישר למשימה הראשונה'), onClick: () => { eveningMusic(); } }]);
+  }
+  // ---------- הורדת הטיזר: רינדור לקנבס + פסקול, הקלטה לקובץ וידאו, שמירה או שיתוף ----------
+  let pkExport = null;
+  function exportSupported() { return !!(window.MediaRecorder && document.createElement('canvas').captureStream && (window.AudioContext || window.webkitAudioContext)); }
+  function exportMime() { const c = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']; for (const m of c) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) { /* */ } } return ''; }
+  function exportEl() {
+    let el = $('#peek-export'); if (el) return el;
+    el = document.createElement('div'); el.id = 'peek-export'; el.className = 'overlay pk-export'; el.hidden = true;
+    el.innerHTML = `<div class="pk-export-card"><canvas class="pk-canvas" width="1280" height="720"></canvas><h2></h2><p class="muted tiny"></p><div class="pk-export-bar"><i></i></div><button type="button" class="btn ghost" data-x="cancel"></button></div>`;
+    document.body.appendChild(el);
+    $('[data-x=cancel]', el).addEventListener('click', () => cancelExport());
+    return el;
+  }
+  function cancelExport() { if (!pkExport) return; pkExport.cancelled = true; try { pkExport.rec && pkExport.rec.state !== 'inactive' && pkExport.rec.stop(); } catch (e) { /* */ } }
+  const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function exportTeaser() {
+    const items = peekItems(); if (!items.length || pkExport) return;
+    if (!exportSupported() || !exportMime()) { dialog(`<h2>${isEn() ? 'Not supported here' : 'לא נתמך בדפדפן הזה'}</h2><p>${isEn() ? 'This browser cannot record video from the app. Try Chrome on Android or Safari on a recent iPhone.' : 'הדפדפן הזה לא יודע להקליט וידאו מתוך האפליקציה. נסו Chrome באנדרואיד או Safari באייפון עדכני.'}</p>`, [{ label: isEn() ? 'Close' : 'סגירה' }]); return; }
+    closePeek(true);
+    peekAudioInit(); if (!pkAudio) return;
+    const el = exportEl(), cv = $('canvas', el), g = cv.getContext('2d'), W = cv.width, H = cv.height;
+    const title = $('h2', el), sub = $('p', el), bar = $('.pk-export-bar i', el);
+    title.textContent = isEn() ? 'Rendering the teaser…' : 'מייצר את הטיזר…'; sub.textContent = isEn() ? 'Keep the app open. Picture and sound are recorded in real time.' : 'השאירו את האפליקציה פתוחה. התמונה והקול מוקלטים בזמן אמת.'; $('[data-x=cancel]', el).textContent = isEn() ? 'Cancel' : 'ביטול'; bar.style.width = '0%';
+    el.hidden = false; document.body.classList.add('peek-on'); requestWake();
+    try { await document.fonts.load('900 60px "Frank Ruhl Libre"'); } catch (e) { /* */ }
+    const SERIF = '"Frank Ruhl Libre","David Libre","Times New Roman",serif', SANS = 'Heebo,system-ui,sans-serif';
+    const musicWas = !!(window.Music && Music.playing); if (musicWas) Music.pause();
+    // אודיו: ה-bus יוצא גם לרמקול וגם להקלטה
+    const { ctx } = pkAudio, recDest = ctx.createMediaStreamDestination(); pkAudio.bus.connect(recDest);
+    const vs = cv.captureStream(30), stream = new MediaStream(vs.getVideoTracks().concat(recDest.stream.getAudioTracks()));
+    const mime = exportMime(), chunks = [], rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5e6, audioBitsPerSecond: 128e3 });
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const done = new Promise((res) => { rec.onstop = res; });
+    pkExport = { rec, cancelled: false };
+    const est = items.reduce((s, it) => s + (it.kind === 'video' ? 12 : 5.2), 0) + 6 + 4, t0 = performance.now();
+    const progress = (frac) => { bar.style.width = Math.round(Math.min(1, frac) * 100) + '%'; };
+    // --- ציור ---
+    const black = () => { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); };
+    const vignette = (a) => { const r = g.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.95); r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(1, `rgba(0,0,0,${0.75 * a})`); g.fillStyle = r; g.fillRect(0, 0, W, H); const l = g.createLinearGradient(0, 0, 0, H); l.addColorStop(0, `rgba(0,0,0,${0.45 * a})`); l.addColorStop(0.35, 'rgba(0,0,0,0)'); l.addColorStop(0.65, 'rgba(0,0,0,0)'); l.addColorStop(1, `rgba(0,0,0,${0.55 * a})`); g.fillStyle = l; g.fillRect(0, 0, W, H); };
+    // מילה עם כניסה ויציאה: שקיפות, טשטוש וריווח (מדומה בקנה מידה)
+    const word = (text, small, k, big) => { // k: 0..1 התקדמות באנימציה
+      const a = k < 0.22 ? k / 0.22 : (k > 0.78 ? (1 - k) / 0.22 : 1), sc = 1.06 - 0.06 * Math.min(1, k / 0.22), blur = k < 0.22 ? 10 * (1 - k / 0.22) : (k > 0.78 ? 6 * ((k - 0.78) / 0.22) : 0);
+      vignette(a);
+      g.save(); g.globalAlpha = a; g.translate(W / 2, H / 2); g.scale(sc, sc); g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = isEn() ? 'ltr' : 'rtl';
+      g.shadowColor = '#000'; g.shadowBlur = 24 + blur * 3; g.filter = blur > 0.5 ? `blur(${blur.toFixed(1)}px)` : 'none';
+      if (small) { g.fillStyle = '#e8c36a'; g.font = `600 26px ${SANS}`; g.fillText(small.toUpperCase(), 0, -62); }
+      g.fillStyle = '#fff'; const fs = big ? 64 : 84; g.font = `900 ${fs}px ${SERIF}`;
+      const lines = wrapText(text, W * 0.8, g); lines.forEach((ln, i) => g.fillText(ln, 0, (i - (lines.length - 1) / 2) * fs * 1.15 + (small ? 10 : 0)));
+      g.restore();
+    };
+    const wrapText = (t, maxW, c) => { const words = String(t).split(' '), out = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (c.measureText(test).width > maxW && cur) { out.push(cur); cur = w; } else cur = test; } if (cur) out.push(cur); return out; };
+    const drawMedia = (m, k, zoomIn) => { // m: video או image; k: 0..1 להתקדמות הזום
+      const iw = m.videoWidth || m.naturalWidth || 1, ih = m.videoHeight || m.naturalHeight || 1, sc = Math.min(W / iw, H / ih) * (m.tagName === 'IMG' ? (zoomIn ? 1 + 0.08 * k : 1.08 - 0.08 * k) : 1), dw = iw * sc, dh = ih * sc;
+      black(); try { g.drawImage(m, (W - dw) / 2, (H - dh) / 2, dw, dh); } catch (e) { /* */ }
+    };
+    const frame = () => new Promise((r) => requestAnimationFrame(r));
+    const fadeIn = async (draw, ms) => { const s = performance.now(); let k = 0; while (k < 1 && !pkExport.cancelled) { k = Math.min(1, (performance.now() - s) / ms); draw(); g.fillStyle = `rgba(0,0,0,${1 - k})`; g.fillRect(0, 0, W, H); await frame(); } };
+    const hold = async (draw, ms) => { const s = performance.now(); while (performance.now() - s < ms && !pkExport.cancelled) { draw(); await frame(); } };
+    const wordOver = async (base, text, small, ms, big) => { const s = performance.now(); let k = 0; while (k < 1 && !pkExport.cancelled) { k = Math.min(1, (performance.now() - s) / ms); base(); word(text, small, k, big); await frame(); } };
+    try {
+      black(); rec.start(250);
+      // פתיחה
+      droneStart(); droneSet(0); boom(0.8);
+      const tag = peekTag('open'); await wordOver(black, tag, '', 2600 + Math.random() * 900, true);
+      boom(0.6); await wordOver(black, `${roleName('D')} & ${roleName('S')}`, isEn() ? 'Tonight' : 'הערב', 1600 + Math.random() * 800, false);
+      // קליפים
+      for (let i = 0; i < items.length && !pkExport.cancelled; i++) {
+        const it = items[i], cat = catOf(it.c.cat) || { name: '' }, prog = items.length > 1 ? i / (items.length - 1) : 1;
+        await hold(black, 120 + Math.random() * 520);
+        const rec2 = await Media.getFile(it.key); if (!rec2 || !rec2.blob) continue;
+        const u = URL.createObjectURL(rec2.blob);
+        droneSet(prog); boom(0.8 + 0.5 * prog); if (i === items.length - 1) setTimeout(() => riser(1.6), rec2.kind === 'image' ? 3000 : 800);
+        const wDelay = 200 + Math.random() * 900, wDur = 1700 + Math.random() * 1300;
+        if (rec2.kind === 'video') {
+          const v = document.createElement('video'); v.src = u; v.muted = true; v.playsInline = true; v.preload = 'auto';
+          await new Promise((res) => { v.onloadeddata = res; v.onerror = res; setTimeout(res, 4000); });
+          const p = v.play(); if (p && p.catch) p.catch(() => {});
+          const s = performance.now(); let ended = false; v.onended = () => { ended = true; };
+          await fadeIn(() => drawMedia(v, 0), 500);
+          while (!ended && !pkExport.cancelled && performance.now() - s < 60000) { const t = performance.now() - s; drawMedia(v, 0); if (t > wDelay && t < wDelay + wDur) word(cat.name || '', '', (t - wDelay) / wDur, false); await frame(); if (v.error) break; }
+          v.pause(); v.removeAttribute('src');
+        } else {
+          const im = new Image(); im.src = u; await new Promise((res) => { im.onload = res; im.onerror = res; });
+          const dur = 3600 + Math.random() * 3200, zoomIn = Math.random() < 0.5, s = performance.now();
+          await fadeIn(() => drawMedia(im, 0, zoomIn), 500);
+          while (performance.now() - s < dur && !pkExport.cancelled) { const t = performance.now() - s, k = Math.min(1, t / 7000); drawMedia(im, k, zoomIn); if (t > wDelay && t < wDelay + wDur) word(cat.name || '', '', (t - wDelay) / wDur, false); await frame(); }
+        }
+        URL.revokeObjectURL(u);
+        progress((performance.now() - t0) / 1000 / est);
+      }
+      // סיום
+      droneStop(); boom(1.1);
+      const endLine = peekTag('end');
+      await wordOver(black, isEn() ? 'Tonight.' : 'הערב.', '', 1400, false);
+      await wordOver(black, endLine, '', 2600, true);
+      await hold(black, 900);
+    } catch (e) { /* */ }
+    try { rec.state !== 'inactive' && rec.stop(); } catch (e) { /* */ }
+    await done;
+    try { pkAudio.bus.disconnect(recDest); } catch (e) { /* */ }
+    droneStop();
+    const cancelled = pkExport.cancelled; pkExport = null;
+    el.hidden = true; document.body.classList.remove('peek-on');
+    if (musicWas) { try { Music.toggle(); } catch (e) { /* */ } }
+    if (cancelled || !chunks.length) return;
+    const blob = new Blob(chunks, { type: mime.split(';')[0] }), ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+    const name = `${APP_ID}-teaser-${new Date().toISOString().slice(0, 10)}.${ext}`;
+    const file = new File([blob], name, { type: blob.type });
+    const canShare = navigator.canShare && navigator.share && (() => { try { return navigator.canShare({ files: [file] }); } catch (e) { return false; } })();
+    const dl = () => { const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 4000); };
+    const btns = [];
+    if (canShare) btns.push({ label: isEn() ? 'Save / share…' : 'שמירה / שיתוף…', cls: 'primary', onClick: () => { navigator.share({ files: [file], title: isEn() ? 'Tonight' : 'הערב' }).catch(() => {}); } });
+    btns.push({ label: isEn() ? 'Download file' : 'הורדת הקובץ', cls: canShare ? 'ghost' : 'primary', onClick: dl });
+    btns.push({ label: isEn() ? 'Close' : 'סגירה' });
+    dialog(`<h2>${isEn() ? 'The teaser is ready' : 'הטיזר מוכן'}</h2><p class="muted tiny">${name} · ${Media.fmtBytes ? Media.fmtBytes(blob.size) : Math.round(blob.size / 1e6) + ' MB'}${isEn() ? '. On iPhone choose Save Video in the share sheet.' : '. באייפון בוחרים ״שמור וידאו״ בגיליון השיתוף.'}</p>`, btns);
   }
   $('#btn-peek').addEventListener('click', openPeek);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && peek) closePeek(); });

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.72';
+  const APP_VERSION = '2026.10.18.73';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -155,8 +155,14 @@
   const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts', 'ai', 'tv', 'list', 'about', 'music'];
   const TABS = { home: 'home', random: 'play', dice: 'dice', timer: 'timer', more: 'more' };
   let current = 'home';
+  function stopCardMedia() {
+    $$('#card-host video, #lightbox video, #scr-editor video, #tv-stage video').forEach((v) => { try { v.pause(); } catch (e) { /* */ } });
+    stopCardTimer();
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { /* */ }
+  }
   function show(name) {
-    current = name;
+    const prev = current; current = name;
+    if (prev === 'play' && name !== 'play') stopCardMedia(); // מסך מוסתר לא עוצר וידאו לבד
     SCREENS.forEach((s) => { $('#scr-' + s).hidden = s !== name; });
     const tabbarOn = !['lock', 'setup'].includes(name) && !(name === 'about' && !S.setupDone);
     $('#tabbar').hidden = !tabbarOn;
@@ -536,7 +542,7 @@
     else if (peek.paused) clearTimeout(peek.timer); else peek.timer = setTimeout(() => (peek.phase === 'intro' ? peekGo(0) : peekGo(peek.i + 1)), 1500);
   }
   // אחרי בניית ערב: הצעה להציץ בו
-  function afterBuild() { if (peekItems().length) offerPeek(); else { startPlay('session'); eveningMusic(); } }
+  function afterBuild() { stopCardMedia(); if (window.Music) Music.pause(); if (peekItems().length) offerPeek(); else { startPlay('session'); eveningMusic(); } }
   function offerPeek() {
     const items = peekItems(); if (!items.length) { startPlay('session'); eveningMusic(); return; }
     const n = S.session.cards.length;
@@ -823,7 +829,8 @@
     $('.stop-t', host).addEventListener('click', stopCardTimer);
   }
   function toggleIn(arr, id, force) { const i = arr.indexOf(id); if (i >= 0 && force !== true) arr.splice(i, 1); else if (i < 0) arr.push(id); }
-  $('#play-back').addEventListener('click', () => show('home'));
+  // חזרה: הכל משתתק, גם הקליפים וגם נגן היוטיוב
+  $('#play-back').addEventListener('click', () => { stopCardMedia(); if (window.Music) Music.pause(); show('home'); });
   $('#play-stop').addEventListener('click', openStop);
 
   function startCardTimer(sec, host) {

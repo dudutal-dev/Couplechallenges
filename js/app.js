@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.71';
+  const APP_VERSION = '2026.10.18.72';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -408,87 +408,16 @@
   // מוזיקת הערב (YouTube) מתחילה רק כשנכנסים למשימות: ״ישר למשימה״, סיום הטיזר, או סגירתו
   let eveningMusicKey = null;
   function eveningMusic() { /* אין הפעלה אוטומטית של מוזיקה: רק מכפתור 🎵 */ }
-  // --- פסקול הטיזר: נוצר ב-Web Audio, בלי קבצים. דרון עמוק, ״בום״ בכל מעבר, ריזר לפני הסיום ---
-  let pkAudio = null;
-  function peekAudioInit() {
-    try {
-      if (!pkAudio) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; const ctx = new AC(); const bus = ctx.createDynamicsCompressor(); bus.threshold.value = -12; bus.knee.value = 8; bus.ratio.value = 10; bus.attack.value = 0.003; bus.release.value = 0.25; bus.connect(ctx.destination); const master = ctx.createGain(); master.gain.value = 0; master.connect(bus); pkAudio = { ctx, master, bus, nodes: null }; }
-      if (pkAudio.ctx.state === 'suspended') pkAudio.ctx.resume();
-    } catch (e) { /* בלי פסקול */ }
-  }
-  // בטיזר נשמע רק הפסקול שנוצר כאן: מוזיקת YouTube מושהית לזמן הצפייה, והקליפים מושתקים
+  // --- פסקול הטיזר: המנוע ב-js/teaser-audio.js, סגנון לפי האפליקציה (טכנו / אמביינט / נואר) ---
+  let pkAudio = null, musicWasPlaying = false;
+  function peekAudioInit() { const h = window.TeaserAudio ? TeaserAudio.init() : null; pkAudio = h ? { ctx: h.ctx, bus: h.bus } : null; }
   const teaserAudioOn = () => !!pkAudio;
-  let musicWasPlaying = false;
-  function droneStart() {
-    if (!teaserAudioOn() || pkAudio.nodes) return;
-    try {
-      const { ctx, master } = pkAudio, now = ctx.currentTime;
-      // מצע: שני מסורים במרווח של חצי טון (מתח), סאב, וטריאנגל דק. המסנן נפתח לאט לאורך הטיזר
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(170, now); lp.frequency.linearRampToValueAtTime(560, now + 45); lp.Q.value = 1.6; lp.connect(master);
-      const mk = (type, f, g, det, dest) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det || 0; const gg = ctx.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(dest || lp); o.start(); return o; };
-      const oscs = [mk('sawtooth', 55, 0.11, -4), mk('sawtooth', 58.27, 0.09, 5), mk('sine', 27.5, 0.5), mk('triangle', 110, 0.035, 2)];
-      // שכבה עליונה שנכנסת ככל שהערב מתקדם: אוקטבה מעל, אותו חצי טון
-      const hig = ctx.createGain(); hig.gain.value = 0; hig.connect(lp);
-      const his = [mk('sawtooth', 110, 1, -3, hig), mk('sawtooth', 116.54, 0.8, 4, hig)]; his.forEach((o) => { o.disconnect(); }); his[0].connect(hig); his[1].connect(hig);
-      // נדנוד איטי של הגובה באחד המסורים: הצליל לא נח
-      const wob = ctx.createOscillator(); wob.frequency.value = 0.11; const wg = ctx.createGain(); wg.gain.value = 14; wob.connect(wg); wg.connect(oscs[0].detune); wob.start();
-      // ה"זוהר" הגבוה: סינוס דק עם טרמולו מהיר, בקושי נשמע, מוסיף אי-שקט
-      const sh = ctx.createOscillator(); sh.type = 'sine'; sh.frequency.value = 1174.66; const shg = ctx.createGain(); shg.gain.value = 0.012;
-      const trem = ctx.createOscillator(); trem.frequency.value = 5.3; const tg = ctx.createGain(); tg.gain.value = 0.01; trem.connect(tg); tg.connect(shg.gain); sh.connect(shg); shg.connect(master); sh.start(); trem.start();
-      // נשימה של המסנן
-      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07; const lg = ctx.createGain(); lg.gain.value = 120; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
-      // דופק: לאב-דאב שמאיץ לאט מ-58 ל-88 פעימות בדקה
-      const hb = { next: now + 0.6, bpm: 56, target: 56, timer: null, tick: 0 };
-      const thump = (t, g, f) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(36, t + 0.16); const gg = ctx.createGain(); gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(g, t + 0.012); gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.26); o.connect(gg); gg.connect(pkAudio.bus); o.start(t); o.stop(t + 0.3); };
-      // טיק קצר בין הפעימות, נכנס במחצית השנייה של הערב
-      const tick = (t, g) => { const len = Math.floor(ctx.sampleRate * 0.05), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len); const n = ctx.createBufferSource(); n.buffer = buf; const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 3200; const gg = ctx.createGain(); gg.gain.value = g; n.connect(f); f.connect(gg); gg.connect(pkAudio.bus); n.start(t); };
-      const schedule = () => { if (!pkAudio || !pkAudio.nodes || pkAudio.nodes.hb !== hb) return; while (hb.next < ctx.currentTime + 0.7) { const per = 60 / hb.bpm; thump(hb.next, 0.5, 74); thump(hb.next + Math.min(0.21, per * 0.3), 0.32, 62); if (hb.tick > 0) tick(hb.next + per / 2, hb.tick); hb.next += per; hb.bpm += Math.sign(hb.target - hb.bpm) * Math.min(0.6, Math.abs(hb.target - hb.bpm)); } hb.timer = setTimeout(schedule, 220); };
-      master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(0.0001, now); master.gain.exponentialRampToValueAtTime(0.42, now + 3);
-      pkAudio.nodes = { oscs: oscs.concat(his, [wob, sh, trem]), lfo, lp, hb, shg, hig, master };
-      schedule();
-    } catch (e) { /* */ }
-  }
-  // עוצמת הדרון לפי התקדמות הערב (0 = פתיחה, 1 = המשימה האחרונה): מסנן נפתח, דופק מאיץ, שכבה עליונה וטיקים נכנסים
-  function droneSet(p) {
-    if (!pkAudio || !pkAudio.nodes) return;
-    try {
-      const n = pkAudio.nodes, { ctx } = pkAudio, t = ctx.currentTime, q = Math.max(0, Math.min(1, p));
-      const ramp = (param, v, d) => { param.cancelScheduledValues(t); param.setValueAtTime(param.value, t); param.linearRampToValueAtTime(v, t + (d || 2.5)); };
-      ramp(n.lp.frequency, 160 + 1000 * Math.pow(q, 1.4), 3);
-      ramp(n.master.gain, 0.36 + 0.22 * q, 2.5);
-      ramp(n.shg.gain, 0.008 + 0.04 * q, 2.5);
-      ramp(n.hig.gain, 0.1 * Math.pow(q, 1.3), 3);
-      n.hb.target = 56 + 42 * q; n.hb.tick = q > 0.45 ? 0.05 + 0.1 * q : 0;
-    } catch (e) { /* */ }
-  }
-  function droneStop() {
-    if (!pkAudio || !pkAudio.nodes) return;
-    const n = pkAudio.nodes; pkAudio.nodes = null;
-    try { clearTimeout(n.hb.timer); const { ctx, master } = pkAudio, now = ctx.currentTime; master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now); master.gain.exponentialRampToValueAtTime(0.0001, now + 0.9); setTimeout(() => { try { n.oscs.forEach((o) => o.stop()); n.lfo.stop(); } catch (e) { /* */ } }, 1000); } catch (e) { /* */ }
-  }
-  function boom(strength) {
-    if (!teaserAudioOn()) return;
-    try {
-      const { ctx } = pkAudio, t = ctx.currentTime, s = strength || 1;
-      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(140 * s, t); o.frequency.exponentialRampToValueAtTime(32, t + 0.7);
-      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.7 * s, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
-      o.connect(g); g.connect(pkAudio.bus); o.start(t); o.stop(t + 1.7);
-      const len = Math.floor(ctx.sampleRate * 0.45), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
-      const n = ctx.createBufferSource(); n.buffer = buf; const nf = ctx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 800; const ng = ctx.createGain(); ng.gain.value = 0.3 * s; n.connect(nf); nf.connect(ng); ng.connect(pkAudio.bus); n.start(t);
-    } catch (e) { /* */ }
-  }
-  function riser(dur) {
-    if (!teaserAudioOn()) return;
-    try {
-      const { ctx } = pkAudio, t = ctx.currentTime, len = Math.floor(ctx.sampleRate * dur), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      const n = ctx.createBufferSource(); n.buffer = buf; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(180, t); f.frequency.exponentialRampToValueAtTime(2600, t + dur);
-      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + dur); g.gain.setValueAtTime(0.0001, t + dur + 0.02);
-      n.connect(f); f.connect(g); g.connect(pkAudio.bus); n.start(t); n.stop(t + dur + 0.05);
-    } catch (e) { /* */ }
-  }
-  function peekAudioPause(p) { if (!pkAudio) return; try { if (p) pkAudio.ctx.suspend(); else pkAudio.ctx.resume(); } catch (e) { /* */ } }
+  function droneStart() { if (pkAudio) TeaserAudio.start(APP_ID); }
+  function droneSet(p) { if (pkAudio) TeaserAudio.set(p); }
+  function droneStop() { if (pkAudio) TeaserAudio.stop(); }
+  function boom(s) { if (pkAudio) TeaserAudio.boom(s); }
+  function riser(d) { if (pkAudio) TeaserAudio.riser(d); }
+  function peekAudioPause(p) { if (pkAudio) TeaserAudio.pause(p); }
 
   // סיסמאות הטיזר: מתחלפות בכל צפייה, עם השמות, המגדר, מספר המשימות והשעה
   const PEEK_TAGS = {"open_he": ["מוכנים לערב שלא תשכחו?", "הערב, הכללים משתנים.", "{D} {d:מחזיק|מחזיקה} את המפתח. {S} {s:עוצר|עוצרת} את הנשימה.", "{N} משימות. אפס דרכי מילוט.", "מהקל אל הכבד. מהכבד אל הבלתי נשכח.", "הלילה הזה שייך ל{D}.", "אל תתכננו כלום לבוקר.", "{S}, הערב לא שואלים אותך. הערב אומרים לך.", "כל מה שחשבתם שאתם יודעים אחד על השני. עד הלילה.", "{N} משימות. מילת עצירה אחת. {D} {d:מחליט|מחליטה} מתי."], "open_en": ["Ready for a night you will not forget?", "Tonight, the rules change.", "{D} holds the key. {S} holds their breath.", "{N} tasks. No way out.", "From gentle to intense. From intense to unforgettable.", "Tonight belongs to {D}.", "Plan nothing for the morning.", "{S}, tonight nobody asks you. Tonight you are told.", "Everything you thought you knew about each other. Until tonight.", "{N} tasks. One stop word. {D} decides when."], "late_he": "כבר מאוחר. בדיוק בזמן.", "late_en": "It is late. Right on time.", "end_he": ["הערב מתחיל עכשיו.", "{D}, המפתח אצלך.", "{S}, תנשום/י. זה הכל אמיתי.", "אין חזרות. יש רק הערב.", "מכאן והלאה, רק אתם."], "end_en": ["The night starts now.", "{D}, the key is yours.", "{S}, breathe. It is all real.", "No rehearsals. Only tonight.", "From here on, only the two of you."]};
@@ -565,13 +494,14 @@
     }
     if (i < 0) i = 0;
     peek.i = i; peek.done = false; peek.paused = false; peek.phase = 'media'; el.classList.remove('end');
-    const it = items[i], c = it.c, cat = catOf(c.cat) || { name: '' };
+    const it = items[i], c = it.c, cat = catOf(c.cat) || { name: '' }, sameCat = i > 0 && items[i - 1].c.cat === c.cat;
     $('.peek-prog', el).textContent = `${i + 1} / ${items.length}`;
     $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
     $$('.peek-dots i', el).forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
-    // מעבר דרך שחור, באורך משתנה בכל פעם
+    // מעבר דרך שחור, באורך משתנה בכל פעם; המילה הקודמת יורדת מיד
+    clearTimeout(peek.wordTimer); $('.peek-word', el).className = 'peek-word';
     stage.innerHTML = '<div class="peek-black"></div>';
-    const dip = 120 + Math.random() * 520;
+    const dip = sameCat ? 50 + Math.random() * 120 : 120 + Math.random() * 520;
     const rec = await Media.getFile(it.key);
     await new Promise((res) => setTimeout(res, dip));
     if (!peek || peek.i !== i || peek.phase !== 'media') return;
@@ -580,7 +510,7 @@
     const wide = tvOn || (window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
     if (wide) peek.cleanTimer = setTimeout(() => { if (peek && peek.phase === 'media') el.classList.add('clean'); }, 2500);
     if (!peek.hinted) { peek.hinted = true; const h = $('.peek-hint', el); h.textContent = isEn() ? 'Tap the screen to hide the buttons. Tap again to bring them back.' : 'הקשה על המסך מסתירה את הכפתורים. הקשה נוספת מחזירה אותם.'; h.hidden = false; setTimeout(() => { h.hidden = true; }, 3200); }
-    const prog = items.length > 1 ? i / (items.length - 1) : 1; droneSet(prog); boom(0.8 + 0.5 * prog); if (i === items.length - 1) setTimeout(() => { if (peek && peek.i === i) riser(1.6); }, rec.kind === 'image' ? 3200 : 800);
+    const prog = items.length > 1 ? i / (items.length - 1) : 1; droneSet(prog); boom(sameCat ? 0.45 : 0.8 + 0.5 * prog); if (i === items.length - 1) setTimeout(() => { if (peek && peek.i === i) riser(1.6); }, rec.kind === 'image' ? 3200 : 800);
     if (rec.kind === 'video') {
       stage.innerHTML = `<video class="pk-in" src="${u}" playsinline autoplay preload="auto"></video>`;
       const v = $('video', stage);
@@ -590,11 +520,11 @@
       const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
     } else {
       stage.innerHTML = `<img class="pk-in ${Math.random() < 0.5 ? 'pk-kb' : 'pk-kb2'}" src="${u}" alt="">`;
-      peek.timer = setTimeout(() => peekGo(i + 1), 3600 + Math.random() * 3200);
+      peek.timer = setTimeout(() => peekGo(i + 1), sameCat ? 2000 + Math.random() * 1400 : 3600 + Math.random() * 3200);
     }
     // שם הקטגוריה נכנס מעל הקליפ עצמו, ונעלם אחרי רגע
     const wDelay = 200 + Math.random() * 900, wDur = 1700 + Math.random() * 1300;
-    setTimeout(() => { if (peek && peek.i === i && peek.phase === 'media') showWord(`<b>${esc(cat.name || '')}</b>`, 'cat', wDur); }, wDelay);
+    if (!sameCat) setTimeout(() => { if (peek && peek.i === i && peek.phase === 'media') showWord(`<b>${esc(cat.name || '')}</b>`, 'cat', wDur); }, wDelay);
   }
   function peekToggle() {
     if (!peek || peek.done) return;
@@ -679,12 +609,12 @@
       boom(0.6); await wordOver(black, `${roleName('D')} & ${roleName('S')}`, isEn() ? 'Tonight' : 'הערב', 1600 + Math.random() * 800, false);
       // קליפים
       for (let i = 0; i < items.length && !pkExport.cancelled; i++) {
-        const it = items[i], cat = catOf(it.c.cat) || { name: '' }, prog = items.length > 1 ? i / (items.length - 1) : 1;
-        await hold(black, 120 + Math.random() * 520);
+        const it = items[i], cat = catOf(it.c.cat) || { name: '' }, prog = items.length > 1 ? i / (items.length - 1) : 1, sameCat = i > 0 && items[i - 1].c.cat === it.c.cat;
+        await hold(black, sameCat ? 50 + Math.random() * 120 : 120 + Math.random() * 520);
         const rec2 = await Media.getFile(it.key); if (!rec2 || !rec2.blob) continue;
         const u = URL.createObjectURL(rec2.blob);
-        droneSet(prog); boom(0.8 + 0.5 * prog); if (i === items.length - 1) setTimeout(() => riser(1.6), rec2.kind === 'image' ? 3000 : 800);
-        const wDelay = 200 + Math.random() * 900, wDur = 1700 + Math.random() * 1300;
+        droneSet(prog); boom(sameCat ? 0.45 : 0.8 + 0.5 * prog); if (i === items.length - 1) setTimeout(() => riser(1.6), rec2.kind === 'image' ? 3000 : 800);
+        const wDelay = 200 + Math.random() * 900, wDur = sameCat ? 0 : 1700 + Math.random() * 1300;
         if (rec2.kind === 'video') {
           const v = document.createElement('video'); v.src = u; v.muted = true; v.playsInline = true; v.preload = 'auto';
           await new Promise((res) => { v.onloadeddata = res; v.onerror = res; setTimeout(res, 4000); });
@@ -695,7 +625,7 @@
           v.pause(); v.removeAttribute('src');
         } else {
           const im = new Image(); im.src = u; await new Promise((res) => { im.onload = res; im.onerror = res; });
-          const dur = 3600 + Math.random() * 3200, zoomIn = Math.random() < 0.5, s = performance.now();
+          const dur = sameCat ? 2000 + Math.random() * 1400 : 3600 + Math.random() * 3200, zoomIn = Math.random() < 0.5, s = performance.now();
           await fadeIn(() => drawMedia(im, 0, zoomIn), 500);
           while (performance.now() - s < dur && !pkExport.cancelled) { const t = performance.now() - s, k = Math.min(1, t / 7000); drawMedia(im, k, zoomIn); if (t > wDelay && t < wDelay + wDur) word(cat.name || '', '', (t - wDelay) / wDur, false); await frame(); }
         }

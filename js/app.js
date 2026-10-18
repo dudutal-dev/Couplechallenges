@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.68';
+  const APP_VERSION = '2026.10.18.69';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -507,16 +507,16 @@
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pk]');
-      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') { if (peek.done) peekIntro(); else peekGo(Math.max(0, peek.i - 1)); } else if (a === 'toggle') peekToggle(); else if (a === 'start') { closePeek(); startPlay('session'); } else if (a === 'export') exportTeaser(); return; }
+      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') { if (peek.done) peekIntro(); else peekGo(Math.max(0, peek.i - 1)); } else if (a === 'toggle') peekToggle(); else if (a === 'start') { const auto = peek.autoStart; closePeek(); if (!auto) startPlay('session'); } else if (a === 'export') exportTeaser(); return; }
       if (e.target.closest('.peek-stage') || e.target.closest('.peek-word')) { if (!peek) return; if (peek.phase === 'intro') peekGo(0); else if (peek.phase === 'media') { clearTimeout(peek.cleanTimer); el.classList.toggle('clean'); } }
     });
     return el;
   }
-  function openPeek() {
+  function openPeek(autoStart) {
     const items = peekItems(); if (!items.length) return;
     peekAudioInit();
     closePeek(true);
-    peek = { items, i: 0, timer: null, urls: [], paused: false, done: false, phase: 'intro' };
+    peek = { items, i: 0, timer: null, urls: [], paused: false, done: false, phase: 'intro', autoStart: !!autoStart };
     const el = peekEl(); el.hidden = false; el.classList.remove('clean', 'end'); document.body.classList.add('peek-on'); requestWake();
     $('.peek-dots', el).innerHTML = items.map(() => '<i></i>').join('');
     musicWasPlaying = !!(window.Music && Music.playing); if (musicWasPlaying) Music.pause();
@@ -526,8 +526,10 @@
     if (!peek) return;
     clearTimeout(peek.timer); clearTimeout(peek.cleanTimer); clearTimeout(peek.wordTimer);
     const el = $('#peek'); if (el) { el.classList.remove('clean'); $('.peek-hint', el).hidden = true; $('.peek-word', el).className = 'peek-word'; const v = $('video', el); if (v) { v.pause(); v.removeAttribute('src'); } $('.peek-stage', el).innerHTML = ''; el.hidden = true; }
+    const autoStart = peek.autoStart;
     peek.urls.forEach((u) => URL.revokeObjectURL(u)); peek = null; document.body.classList.remove('peek-on');
     droneStop();
+    if (!silent && autoStart) startPlay('session'); // הטיזר נפתח מההצעה אחרי ערב חדש: בסגירתו נכנסים למשימה הראשונה
     if (musicWasPlaying) { musicWasPlaying = false; try { Music.toggle(); } catch (e) { /* */ } }
     if (!silent) eveningMusic(); // יציאה מהטיזר אל המשימות: עכשיו המוזיקה
   }
@@ -604,11 +606,12 @@
     else if (peek.paused) clearTimeout(peek.timer); else peek.timer = setTimeout(() => (peek.phase === 'intro' ? peekGo(0) : peekGo(peek.i + 1)), 1500);
   }
   // אחרי בניית ערב: הצעה להציץ בו
+  function afterBuild() { if (peekItems().length) offerPeek(); else { startPlay('session'); eveningMusic(); } }
   function offerPeek() {
-    const items = peekItems(); if (!items.length) { eveningMusic(); return; }
+    const items = peekItems(); if (!items.length) { startPlay('session'); eveningMusic(); return; }
     const n = S.session.cards.length;
     dialog(`<h2>${isEn() ? 'The evening is ready' : 'הערב מוכן'}</h2><p>${isEn() ? `${n} ${PEEK_UNIT()}, ${items.length} of them with a video or picture. Watch the teaser of the evening ahead?` : `${n} ${PEEK_UNIT()}, ${items.length} מהן עם סרטון או תמונה. לצפות בטיזר של הערב שמצפה לכם?`}</p>`,
-      [{ label: isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו', cls: 'primary', onClick: () => { peekAudioInit(); setTimeout(openPeek, 30); } }, { label: isEn() ? 'Straight to the first one' : (APP_ID === 'masks' ? 'ישר לסצנה הראשונה' : 'ישר למשימה הראשונה'), onClick: () => { eveningMusic(); } }]);
+      [{ label: isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו', cls: 'primary', onClick: () => { peekAudioInit(); setTimeout(() => openPeek(true), 30); } }, { label: isEn() ? 'Straight to the first one' : (APP_ID === 'masks' ? 'ישר לסצנה הראשונה' : 'ישר למשימה הראשונה'), onClick: () => { startPlay('session'); eveningMusic(); } }]);
   }
   // ---------- הורדת הטיזר: רינדור לקנבס + פסקול, הקלטה לקובץ וידאו, שמירה או שיתוף ----------
   let pkExport = null;
@@ -627,7 +630,7 @@
   async function exportTeaser() {
     const items = peekItems(); if (!items.length || pkExport) return;
     if (!exportSupported() || !exportMime()) { dialog(`<h2>${isEn() ? 'Not supported here' : 'לא נתמך בדפדפן הזה'}</h2><p>${isEn() ? 'This browser cannot record video from the app. Try Chrome on Android or Safari on a recent iPhone.' : 'הדפדפן הזה לא יודע להקליט וידאו מתוך האפליקציה. נסו Chrome באנדרואיד או Safari באייפון עדכני.'}</p>`, [{ label: isEn() ? 'Close' : 'סגירה' }]); return; }
-    closePeek(true);
+    const wasAuto = !!(peek && peek.autoStart); closePeek(true);
     peekAudioInit(); if (!pkAudio) return;
     const el = exportEl(), cv = $('canvas', el), g = cv.getContext('2d'), W = cv.width, H = cv.height;
     const title = $('h2', el), sub = $('p', el), bar = $('.pk-export-bar i', el);
@@ -713,6 +716,7 @@
     const cancelled = pkExport.cancelled; pkExport = null;
     el.hidden = true; document.body.classList.remove('peek-on');
     if (musicWas) { try { Music.toggle(); } catch (e) { /* */ } }
+    if (wasAuto) { startPlay('session'); eveningMusic(); }
     if (cancelled || !chunks.length) return;
     const blob = new Blob(chunks, { type: mime.split(';')[0] }), ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
     const name = `${APP_ID}-teaser-${new Date().toISOString().slice(0, 10)}.${ext}`;
@@ -754,10 +758,10 @@
         S.dom = Math.random() < 0.5 ? 'a' : 'b'; S.eveningAlt = Math.random() < 0.5; save();
         const c = ctx();
         dialog(`<h2>ההגרלה</h2><div class="draw"><div class="draw-row">${illus('key')}<b>${c.D}</b> ${c.dg === 'm' ? 'מוביל' : 'מובילה'}${S.eveningAlt ? ' ראשון' : ' את כל הערב'}</div><div class="draw-row">${illus(S.eveningAlt ? 'cuffs' : 'lock')}<b>${S.eveningAlt ? 'מתחלף כל משימה' : 'קבוע כל הערב'}</b></div></div>`,
-          [{ label: 'מתחילים', cls: 'primary', onClick: () => { buildSession(); startPlay('session'); setTimeout(offerPeek, 60); } }]);
+          [{ label: 'מתחילים', cls: 'primary', onClick: () => { buildSession(); setTimeout(afterBuild, 60); } }]);
         return true; // הדיאלוג של ההגרלה נשאר פתוח גם כשנקרא מתוך דיאלוג האישור
       }
-      buildSession(); startPlay('session'); setTimeout(offerPeek, 60);
+      buildSession(); setTimeout(afterBuild, 60);
     };
     if (S.session && S.session.idx < S.session.cards.length) dialog('<h2>ערב חדש?</h2><p>הערב הנוכחי יימחק ותיבנה חפיסה חדשה.</p>', [{ label: 'כן, ערב חדש', cls: 'primary', onClick: () => go() }, { label: 'ביטול' }]);
     else go();

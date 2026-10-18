@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.55';
+  const APP_VERSION = '2026.10.18.56';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1288,10 +1288,36 @@ EXAMPLE corset:
   const DEFAULT_PROMPT_IMG = 'Photorealistic, candlelit, cinematic, shallow depth of field.';
   const DEFAULT_PROMPT_KEEP = 'The same two people as in the attached image (faces, hair, skin, bodies, full anatomy) in the same room: same background, furniture, props, light and camera angle, from the first frame to the last. No other room, no new objects, no added clothing, no extra people, nothing hidden or censored.';
   const DEFAULT_PROMPT_ACT = 'Show exactly this action and nothing else; both bodies stay complete and in frame throughout.';
+  // רק האקט: מוחקים מתיאור הצילום חדרים ותאורה, ומכלילים רהיטים ל"מה שיש בתמונה", כדי שהרקע יישאר של התמונה שהעליתם
+  const FURN = 'bed|mattress|sofa|couch|armchair|chair|stool|bench|table|desk|counter|nightstand|headboard';
+  const ACT_ONLY = [
+    [/\b(?:the |a )?(?:bedroom|living room|room|kitchen|bathroom|hallway) floor\b/gi, 'the floor'],
+    [/\s*\b(?:in the middle of|in|into|across|through|around|inside|at|toward|towards|to|out of|from) (?:the |a |an |this |that |your )?(?:dim |dark |candlelit |small |empty |whole |same |other |next )*(?:bedroom|living room|room|kitchen|bathroom|hallway|corridor|apartment|house|doorway|door ?frame)\b/gi, ''],
+    [/\s*\b(?:in|by|under|with) (?:the |a )?(?:candlelight|dim light|lamplight|moonlight|soft light|low light|warm light)\b/gi, ''],
+    [/,?\s*\bcandlelight\b/gi, ''],
+    [/\b(dims?|dimming|turns? off|switch(?:es)? off) the (?:lamp|lights?)\b/gi, '$1 the light'],
+    [new RegExp('\\b(on|onto|to|at|against|across|over|into|in|from|off|beside|by|near|under|behind) (?:the |a |an )?(?:wooden |soft |hard |low |high |big |small |large |kitchen |dining )?((?:edge|foot|head|end|side|back|arm) of (?:the |a )?)?(?:' + FURN + ')\\b', 'gi'), (m, prep, part) => `${prep} the ${part ? part.replace(/(?:the|a) $/, '') + 'the ' : ''}furniture in the image`],
+    [new RegExp('\\b(?:the|a|an) (?:' + FURN + ')\\b', 'gi'), 'the furniture in the image'],
+    [/\b(?:a|the) (?:pillow|cushion)\b/gi, 'a cushion'],
+    [/\s*\b(?:leans?|leaning) against the (?:doorframe|door ?frame|door)\b/gi, ' leans back'],
+    [/\b(?:a|the) (?:wooden |hard |low |high |small )?(?:chair|stool|bench)\b/gi, 'the seat in the image'],
+    [/\bthe (?:two )?bed ?posts\b/gi, 'two fixed points at the foot of the furniture in the image'],
+    [/\bunder a single lamp\b/gi, ''],
+    [/\b[Dd]im lamp,\s*/g, ''],
+    [/,\s*the lamp (?:glowing )?(?:low|behind them|dimmed|on)\b/gi, ''],
+    [/,\s*the lamp low\b/gi, ''],
+    [/\s*\bon the (?:nightstand|bedside table)\b/gi, ' within reach'],
+    [/\bthe sheets\b/gi, 'the fabric beneath'],
+    [/\bthe wall\b/gi, 'the nearest wall in the image'],
+    [/\bby the window\b/gi, ''],
+    [/the furniture in the image or the furniture in the image/gi, 'the furniture in the image'],
+    [/\s{2,}/g, ' '], [/\s+([,.;:])/g, '$1'], [/\(\s*\)/g, ''], [/,\s*\./g, '.'],
+  ];
+  const actOnly = (t) => ACT_ONLY.reduce((s, [re, r]) => s.replace(re, r), t || '').replace(/\.\s*\./g, '.').trim();
   function buildPrompt(c, v, kind) {
     const e = entryText(c, v);
     const man = v.key === 'm', giver = man ? 'the man' : 'the woman', recv = man ? 'the woman' : 'the man';
-    const shot = shotFor(c, v), en = enFor(c, v), cap = (t) => t[0].toUpperCase() + t.slice(1);
+    const shot = actOnly(shotFor(c, v)) || null, en = actOnly(enFor(c, v)) || null, cap = (t) => t[0].toUpperCase() + t.slice(1);
     const style = (S.promptStyle || DEFAULT_PROMPT_STYLE).trim();
     const video = (S.promptVideo || DEFAULT_PROMPT_VIDEO).trim();
     const act = (S.promptAct || DEFAULT_PROMPT_ACT).trim();
@@ -1322,6 +1348,7 @@ END: ${bt.end}` : ''}`
     const essence = `TASK (what the picture must say at a glance): ${en || e.text}`;
     const lines = kind === 'video' ? [
       `KEEP FROM THE IMAGE: ${keep}`,
+      'SETTING: only what the attached image shows. No bed, sofa, room, candles or any object that is not in the image; "the furniture in the image" below means whatever the image actually has.',
       action,
       `PEOPLE: ${perf}`,
       `VIDEO: ${video} ${style} ${act}`,
@@ -1332,6 +1359,7 @@ END: ${bt.end}` : ''}`
       const imgStyle = (S.promptImg || DEFAULT_PROMPT_IMG).trim();
       return [
         frame,
+        `Setting: only what the reference image shows; add no furniture, room or objects that are not in it.`,
         `Pose locked exactly as described above: who stands, kneels or lies and in which direction, where each hand, mouth and body part is. Do not change, simplify or mirror the pose.`,
         `Exactly two people, the man and the woman from the reference image: same faces, hair, bodies, same room and props. Both fully nude unless the scene above says otherwise. The man's penis and testicles are clearly visible, the woman's breasts and vulva are visible. Each has two arms, two legs and five fingers per hand, nothing missing, nothing added. No one and nothing else in the frame.`,
         imgStyle + (CAT_EN[c.cat] ? ` Tags: ${CAT_EN[c.cat]}, exact pose, two people, full body visible.` : ''),

@@ -103,6 +103,7 @@
   // יצירת נגן שקט מראש (בלי ניגון) כדי שלחיצה אחת תספיק להתחיל עם קול
   function cueOnly() { if (yt || apiState !== 'ready') return; const it = candidate(); if (it) { current = it; createPlayer(it, false); paintBar(); } }
   function candidate() { if (cfg.auto === 'pick' && cfg.pick) return favs.find((f) => f.id === cfg.pick) || null; if (cfg.auto === 'random' && favs.length) return favs[Math.floor(Math.random() * favs.length)]; return cfg.last || favs[0] || null; }
+  if (cfg.auto === 'off') { cfg.auto = 'last'; saveCfg(); }
 
   function play(it, autoplay) {
     if (!it) return;
@@ -141,10 +142,13 @@
 
   // ---------- פתיחת ערב ----------
   let lastEvening = null;
-  function onEveningStart(key) {
-    if (key && key === lastEvening) return; lastEvening = key || Date.now();
-    if (cfg.auto === 'off') return;
-    const it = candidate(); if (it) play(it, true);
+  // אין הפעלה אוטומטית: המוזיקה מתחילה רק מלחיצה על 🎵 במסך המשימה או בטלוויזיה
+  function onEveningStart() { /* הושבת בכוונה */ }
+  // לחיצת המשתמש: מנגן את הבחירה (האחרון / אקראי / מועדף קבוע), או משהה אם כבר מתנגן. מחזיר false אם אין מה לנגן
+  function toggleEvening() {
+    if (playing || ytPlaying()) { pause(); return true; }
+    if (current && yt) { toggle(); return true; }
+    const it = candidate(); if (!it) return false; play(it, true); return true;
   }
 
   // ---------- מסך ----------
@@ -186,12 +190,11 @@
         ${favs.length ? favRows : `<p class="muted tiny">${L('עוד אין. מנגנים משהו ולוחצים ★, או מוסיפים קישור.', 'None yet. Play something and tap ★, or add a link.')}</p>`}
       </div>
       <div class="card">
-        <h2>${L('בפתיחת ערב', 'At evening start')}</h2>
-        <p class="muted tiny">${L('כשלוחצים ״התחל ערב חדש״, המוזיקה מתחילה לבד:', 'When you tap "Start a new evening", the music starts by itself:')}</p>
+        <h2>${L('כפתור 🎵 בערב', 'The 🎵 button during the evening')}</h2>
+        <p class="muted tiny">${L('המוזיקה אף פעם לא מתחילה לבד. במסך המשימה ובטלוויזיה יש כפתור 🎵 ליד הטלוויזיה; לחיצה עליו מנגנת:', 'Music never starts by itself. The task screen and the TV bar have a 🎵 button next to TV; tapping it plays:')}</p>
         <div class="seg mu-seg">
           <button type="button" data-auto="last" class="${cfg.auto === 'last' ? 'on' : ''}">${L('מה שנוגן לאחרונה', 'Last played')}</button>
           <button type="button" data-auto="random" class="${cfg.auto === 'random' ? 'on' : ''}">${L('אקראי מהמועדפים', 'Random favorite')}</button>
-          <button type="button" data-auto="off" class="${cfg.auto === 'off' ? 'on' : ''}">${L('כבוי', 'Off')}</button>
         </div>
         <p class="muted tiny">${cfg.auto === 'pick' && cfg.pick ? L('נבחר מועדף קבוע (🌙 ברשימה). לחיצה על 🌙 שוב מבטלת.', 'A fixed favorite is chosen (🌙 in the list). Tap 🌙 again to clear.') : L('אפשר גם לקבוע מועדף אחד שייפתח תמיד: 🌙 ליד השם ברשימה.', 'You can also fix one favorite that always opens: 🌙 next to its name in the list.')}</p>
       </div>
@@ -227,8 +230,8 @@
 
   function init() {
     // טוענים את YouTube מראש רק אם יש מה לנגן, כדי שפתיחת ערב תתחיל עם קול בלחיצה אחת
-    if (cfg.auto !== 'off' && candidate()) { ensureBar(); setTimeout(loadApi, 1500); }
+    if (candidate()) { ensureBar(); setTimeout(loadApi, 1500); }
   }
   function hasSomething() { return favs.length > 0 || !!cfg.last; }
-  window.Music = { init, render, play, pause, stop, toggle, onEveningStart, parse, hasSomething, get current() { return current; }, get playing() { return playing || ytPlaying(); } };
+  window.Music = { init, render, play, pause, stop, toggle, onEveningStart, toggleEvening, candidate, parse, hasSomething, get current() { return current; }, get playing() { return playing || ytPlaying(); } };
 })();

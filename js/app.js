@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.69';
+  const APP_VERSION = '2026.10.18.70';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -407,7 +407,7 @@
   let peek = null;
   // מוזיקת הערב (YouTube) מתחילה רק כשנכנסים למשימות: ״ישר למשימה״, סיום הטיזר, או סגירתו
   let eveningMusicKey = null;
-  function eveningMusic() { if (!window.Music || !S.session) return; if (eveningMusicKey === S.session.startedAt) return; eveningMusicKey = S.session.startedAt; Music.onEveningStart(S.session.startedAt); }
+  function eveningMusic() { /* אין הפעלה אוטומטית של מוזיקה: רק מכפתור 🎵 */ }
   // --- פסקול הטיזר: נוצר ב-Web Audio, בלי קבצים. דרון עמוק, ״בום״ בכל מעבר, ריזר לפני הסיום ---
   let pkAudio = null;
   function peekAudioInit() {
@@ -855,7 +855,7 @@
     host.innerHTML = cardHtml(c); hydrateCard(host);
     $$('[data-vp]', host).forEach((b) => b.addEventListener('click', () => { S.vidPref = b.dataset.vp; save(); renderPlay(); }));
     const fav = S.favorites.includes(c.id);
-    const tools = `<div class="row gap tools">${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}<button class="btn ghost small" id="pa-tv">📺 טלוויזיה</button>${playMode === 'session' && peekItems().length ? `<button class="btn ghost small" id="pa-peek">👁 ${isEn() ? 'Peek' : 'הצצה'}</button>` : ''}</div>`;
+    const tools = `<div class="row gap tools">${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}<button class="btn ghost small" id="pa-tv">📺 טלוויזיה</button><button class="btn ghost small" id="pa-music">${musicBtnLabel()}</button>${playMode === 'session' && peekItems().length ? `<button class="btn ghost small" id="pa-peek">👁 ${isEn() ? 'Peek' : 'הצצה'}</button>` : ''}</div>`;
     acts.innerHTML = playMode === 'session'
       ? `<button class="btn primary big" id="pa-done">בוצע, הבא</button>
          <div class="row gap">
@@ -869,6 +869,7 @@
            <button class="btn ghost" id="pa-hide">לא שוב</button>
          </div>${tools}`;
     $('#pa-tv').addEventListener('click', enterTv);
+    $('#pa-music').addEventListener('click', () => { if (!(window.Music && Music.toggleEvening())) show('music'); });
     $('#pa-peek') && $('#pa-peek').addEventListener('click', openPeek);
     $('#pa-speak') && $('#pa-speak').addEventListener('click', () => speak(plainText(c)));
     const next = () => { sessionAdvance(); renderPlay(); };
@@ -1181,8 +1182,9 @@
     }
   }
   // ניגון עם קול. אם הדפדפן חוסם אוטו-פליי עם קול, מנגנים בשקט ומציגים כפתור ״הפעלת קול״ שלחיצה אחת עליו פותחת את הקול
+  const musicBtnLabel = () => (window.Music && Music.playing) ? (isEn() ? '⏸ Music' : '⏸ מוזיקה') : (isEn() ? '🎵 Music' : '🎵 מוזיקה');
   // מוזיקת רקע: כשהיא מתחילה, כל סרטוני המשימות שמתנגנים מושתקים; כשהיא נעצרת, הקול חוזר אם לא כובה ידנית
-  document.addEventListener('music:state', (e) => { const on = !!(e.detail && e.detail.playing); $$('#card-host video, #tv-stage video, #lightbox video, #scr-editor video').forEach((v) => { v.muted = on || !!S.videoMuted; }); $$('.vid-sound').forEach((b) => { b.hidden = on; }); });
+  document.addEventListener('music:state', (e) => { const on = !!(e.detail && e.detail.playing); const mb = $('#pa-music'); if (mb) mb.textContent = musicBtnLabel(); const tb = $('#tv-stage [data-tv=music]'); if (tb) tb.textContent = musicBtnLabel(); $$('#card-host video, #tv-stage video, #lightbox video, #scr-editor video').forEach((v) => { v.muted = on || !!S.videoMuted; }); $$('.vid-sound').forEach((b) => { b.hidden = on; }); });
   function playWithSound(v, host) {
     if (!v) return;
     const musicOn = !!(window.Music && Music.playing); // מוזיקת רקע מתנגנת: הסרטון מושתק אוטומטית
@@ -1474,6 +1476,7 @@ EXAMPLE corset:
         ${typeAvailable(S.media[c.id] || {}, 'personal') && typeAvailable(S.media[c.id] || {}, 'demo') ? `<button class="tv-btn" data-tv="vidpref">${activeVidType(S.media[c.id] || {}) === 'personal' ? 'להדגמה' : 'לסרטון האישי'}</button>` : ''}
         ${hasMedia(c.id) ? `<button class="tv-btn" data-tv="vfull">${tvVideoFull ? 'חזרה לכרטיס' : (activeVidSlot(S.media[c.id] || {}) ? '⛶ סרטון במסך מלא' : '⛶ תמונה במסך מלא')}</button>` : ''}
         ${playMode === 'session' && peekItems().length ? '<button class="tv-btn" data-tv="peek">👁 הצצה</button>' : ''}
+        <button class="tv-btn" data-tv="music">${musicBtnLabel()}</button>
         <button class="tv-btn" data-tv="dice">קוביות</button>
         <button class="tv-btn" data-tv="cast" ${'PresentationRequest' in window ? '' : 'hidden'}>${tvConn ? '📡 משודר' : '📡 Chromecast'}</button>
         <button class="tv-btn" data-tv="exit">יציאה</button>
@@ -1521,6 +1524,7 @@ EXAMPLE corset:
     const c = currentCard();
     if (a === 'exit') return exitTv();
     if (a === 'peek') return openPeek();
+    if (a === 'music') { if (!(window.Music && Music.toggleEvening())) { exitTv(); show('music'); } return; }
     if (a === 'stop') return openStop();
     if (a === 'next') { if (playMode === 'session') sessionAdvance(); else pickRandom(); tvView = 'card'; return renderTv(); }
     if (a === 'skip') { if (c) sessionSkip(c); return renderTv(); }

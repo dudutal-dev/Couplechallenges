@@ -563,3 +563,19 @@ body.peek-on .music-bar{display:none}
 .peek-word.intro b{font-size:clamp(1.8rem,7vw,3.6rem)}
 .peek.clean .peek-word{opacity:1}
 .peek-end h1{font-family:var(--serif);font-size:2.4rem;letter-spacing:.08em;margin:0}
+
+/* טיזר: תיקון פריסה לכרטיס הסיום ולפס ההתקדמות, סיסמת פתיחה */
+.peek-dots{height:3px;min-height:0;align-items:stretch}
+.peek-dots i{height:3px !important;min-height:0;max-height:3px;display:block}
+.peek.end .peek-dots,.peek.end .peek-top .peek-prog{display:none}
+.peek-end{max-height:100dvh;overflow:auto;box-sizing:border-box;justify-content:center}
+.peek-end .lead{margin:0;font-size:1.05rem;color:#e8dede}
+.peek-word b.tag{font-size:clamp(1.6rem,6.2vw,3.4rem);letter-spacing:.06em;line-height:1.25;max-width:14em}
+@media (orientation: landscape){
+  .peek-end{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;max-width:none;width:min(92vw,760px);gap:8px 14px;padding:12px 16px}
+  .peek-end .home-emblem{display:none}
+  .peek-end h1{width:100%;font-size:1.9rem;margin:0}
+  .peek-end .lead{width:100%;font-size:1rem}
+  .peek-end .btn{width:auto;flex:1 1 40%;max-width:320px}
+  .peek-word b.tag{font-size:clamp(1.5rem,4.6vw,3rem)}
+}

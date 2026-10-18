@@ -549,3 +549,17 @@ body.peek-on .music-bar{display:none}
 
 .peek-title .pt-word{font-family:var(--serif);font-size:1.6rem;color:var(--gold2);letter-spacing:.02em;margin-top:8px}
 .peek-cap p{font-family:var(--serif);font-size:1.4rem;color:var(--gold2)}
+
+/* טיזר קולנועי: מילה מעל הווידאו, מעבר דרך שחור, בלי כרטיסי מצגת */
+.peek-cap,.peek-title{display:none !important}
+.peek-black{position:absolute;inset:0;background:#000}
+@keyframes pkWord{0%{opacity:0;letter-spacing:.45em;filter:blur(10px);transform:scale(1.06)}22%{opacity:1;letter-spacing:.12em;filter:blur(0);transform:none}78%{opacity:1;letter-spacing:.1em;filter:blur(0);transform:none}100%{opacity:0;letter-spacing:.06em;filter:blur(6px);transform:scale(.98)}}
+@keyframes pkVig{0%{opacity:0}20%{opacity:1}80%{opacity:1}100%{opacity:0}}
+.peek-word{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;text-align:center;z-index:2;pointer-events:none;padding:24px;color:#fff;text-shadow:0 2px 18px #000,0 0 40px #000}
+.peek-word.on{display:flex}
+.peek-word.on::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,#0000 30%,#000a 100%),linear-gradient(0deg,#0008,#0000 40%,#0000 60%,#0006);animation:pkVig var(--dur,2.3s) ease both;z-index:-1}
+.peek-word b{display:block;font-family:var(--serif);font-weight:700;font-size:clamp(2rem,8vw,4.2rem);line-height:1.1;letter-spacing:.1em;animation:pkWord var(--dur,2.3s) ease both}
+.peek-word small{display:block;color:var(--gold2);letter-spacing:.3em;text-transform:uppercase;font-size:.85rem;animation:pkWord var(--dur,2.3s) ease both}
+.peek-word.intro b{font-size:clamp(1.8rem,7vw,3.6rem)}
+.peek.clean .peek-word{opacity:1}
+.peek-end h1{font-family:var(--serif);font-size:2.4rem;letter-spacing:.08em;margin:0}

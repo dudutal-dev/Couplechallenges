@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.61';
+  const APP_VERSION = '2026.10.18.62';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -396,7 +396,7 @@
   }
 
   // ---------- בית ----------
-  // ---------- הצצה לערב: כל הסרטונים והתמונות של משימות הערב, ברצף אחד ----------
+  // ---------- הצצה לערב: טיזר קולנועי מכל הסרטונים והתמונות של משימות הערב ----------
   const PEEK_UNIT = () => (APP_ID === 'masks' ? (isEn() ? 'scenes' : 'סצנות') : (isEn() ? 'tasks' : 'משימות'));
   function peekItems() {
     const s = S.session; if (!s || SAFE_MODE) return [];
@@ -405,84 +405,144 @@
     return out;
   }
   let peek = null;
+  // --- פסקול הטיזר: נוצר ב-Web Audio, בלי קבצים. דרון עמוק, ״בום״ בכל מעבר, ריזר לפני הסיום ---
+  let pkAudio = null;
+  function peekAudioInit() {
+    try {
+      if (!pkAudio) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; const ctx = new AC(); const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination); pkAudio = { ctx, master, nodes: null }; }
+      if (pkAudio.ctx.state === 'suspended') pkAudio.ctx.resume();
+    } catch (e) { /* בלי פסקול */ }
+  }
+  const peekSoundMode = () => S.peekSound || 'teaser'; // teaser = פסקול + קליפים מושתקים · clips = הקול של הקליפים · off = שקט
+  const teaserAudioOn = () => !!pkAudio && peekSoundMode() === 'teaser' && !(window.Music && Music.playing);
+  function droneStart() {
+    if (!teaserAudioOn() || pkAudio.nodes) return;
+    try {
+      const { ctx, master } = pkAudio, now = ctx.currentTime;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 0.9; lp.connect(master);
+      const mk = (type, f, g, det) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det || 0; const gg = ctx.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(lp); o.start(); return o; };
+      const oscs = [mk('sawtooth', 55, 0.1, -7), mk('sawtooth', 55, 0.1, 8), mk('sine', 27.5, 0.45), mk('triangle', 82.4, 0.04, 4)];
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.06; const lg = ctx.createGain(); lg.gain.value = 150; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+      master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(0.0001, now); master.gain.exponentialRampToValueAtTime(0.45, now + 2.5);
+      pkAudio.nodes = { oscs, lfo, lp };
+    } catch (e) { /* */ }
+  }
+  function droneStop() {
+    if (!pkAudio || !pkAudio.nodes) return;
+    try { const { ctx, master } = pkAudio, now = ctx.currentTime, n = pkAudio.nodes; master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value || 0.0001, now); master.gain.exponentialRampToValueAtTime(0.0001, now + 0.9); setTimeout(() => { try { n.oscs.forEach((o) => o.stop()); n.lfo.stop(); } catch (e) { /* */ } }, 1000); } catch (e) { /* */ }
+    pkAudio.nodes = null;
+  }
+  function boom(strength) {
+    if (!teaserAudioOn()) return;
+    try {
+      const { ctx } = pkAudio, t = ctx.currentTime, s = strength || 1;
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(140 * s, t); o.frequency.exponentialRampToValueAtTime(32, t + 0.7);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.7 * s, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 1.7);
+      const len = Math.floor(ctx.sampleRate * 0.45), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+      const n = ctx.createBufferSource(); n.buffer = buf; const nf = ctx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 800; const ng = ctx.createGain(); ng.gain.value = 0.3 * s; n.connect(nf); nf.connect(ng); ng.connect(ctx.destination); n.start(t);
+    } catch (e) { /* */ }
+  }
+  function riser(dur) {
+    if (!teaserAudioOn()) return;
+    try {
+      const { ctx } = pkAudio, t = ctx.currentTime, len = Math.floor(ctx.sampleRate * dur), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const n = ctx.createBufferSource(); n.buffer = buf; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(180, t); f.frequency.exponentialRampToValueAtTime(2600, t + dur);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + dur); g.gain.setValueAtTime(0.0001, t + dur + 0.02);
+      n.connect(f); f.connect(g); g.connect(ctx.destination); n.start(t); n.stop(t + dur + 0.05);
+    } catch (e) { /* */ }
+  }
+  function peekAudioPause(p) { if (!pkAudio) return; try { if (p) pkAudio.ctx.suspend(); else pkAudio.ctx.resume(); } catch (e) { /* */ } }
+
   function peekEl() {
     let el = $('#peek'); if (el) return el;
     el = document.createElement('div'); el.id = 'peek'; el.className = 'overlay peek'; el.hidden = true;
-    el.innerHTML = `<div class="peek-stage"></div><div class="peek-hint" hidden></div><div class="peek-top"><span class="peek-prog"></span><button type="button" class="btn small ghost" data-pk="close">✕</button></div><div class="peek-cap"><span class="chip cat"></span><p></p></div><div class="peek-dots"></div><div class="peek-bar"><button type="button" class="pk-btn" data-pk="prev">⏮</button><button type="button" class="pk-btn" data-pk="toggle">⏸</button><button type="button" class="pk-btn" data-pk="next">⏭</button></div>`;
+    el.innerHTML = `<div class="peek-stage"></div><div class="peek-word"></div><div class="peek-hint" hidden></div><div class="peek-top"><span class="peek-prog"></span><button type="button" class="btn small ghost" data-pk="close">✕</button></div><div class="peek-dots"></div><div class="peek-bar"><button type="button" class="pk-btn" data-pk="prev">⏮</button><button type="button" class="pk-btn" data-pk="toggle">⏸</button><button type="button" class="pk-btn" data-pk="next">⏭</button><button type="button" class="pk-btn" data-pk="sound">🎬</button></div>`;
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pk]');
-      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') { if (peek.done) { peekIntro(); } else peekGo(peek.phase === 'media' ? peek.i : peek.i - 1); } else if (a === 'toggle') peekToggle(); else if (a === 'start') { closePeek(); startPlay('session'); } return; }
-      if (e.target.closest('.peek-stage')) { if (!peek) return; if (peek.phase === 'intro') peekGo(0); else if (peek.phase === 'title') peekGo(peek.i, true); else if (peek.phase === 'media') { clearTimeout(peek.cleanTimer); el.classList.toggle('clean'); } }
+      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') { if (peek.done) peekIntro(); else peekGo(Math.max(0, peek.i - 1)); } else if (a === 'toggle') peekToggle(); else if (a === 'sound') peekSoundCycle(); else if (a === 'start') { closePeek(); startPlay('session'); } return; }
+      if (e.target.closest('.peek-stage') || e.target.closest('.peek-word')) { if (!peek) return; if (peek.phase === 'intro') peekGo(0); else if (peek.phase === 'media') { clearTimeout(peek.cleanTimer); el.classList.toggle('clean'); } }
     });
     return el;
   }
+  function peekSoundCycle() {
+    const order = ['teaser', 'clips', 'off'], cur = peekSoundMode(), next = order[(order.indexOf(cur) + 1) % order.length];
+    S.peekSound = next; save(); peekAudioInit();
+    if (next === 'teaser') droneStart(); else droneStop();
+    const v = $('#peek .peek-stage video'); if (v) v.muted = next !== 'clips' || !!S.videoMuted || !!(window.Music && Music.playing);
+    paintPeekSound();
+  }
+  function paintPeekSound() { const b = $('#peek [data-pk=sound]'); if (!b) return; const m = peekSoundMode(); b.textContent = m === 'teaser' ? '🎬' : (m === 'clips' ? '🔊' : '🔇'); b.title = m === 'teaser' ? (isEn() ? 'Teaser soundtrack' : 'פסקול טיזר') : (m === 'clips' ? (isEn() ? 'Clip sound' : 'הקול של הקליפים') : (isEn() ? 'Silent' : 'שקט')); }
   function openPeek() {
     const items = peekItems(); if (!items.length) return;
+    peekAudioInit();
     closePeek();
-    peek = { items, i: 0, timer: null, urls: [], paused: false, done: false };
+    peek = { items, i: 0, timer: null, urls: [], paused: false, done: false, phase: 'intro' };
     const el = peekEl(); el.hidden = false; el.classList.remove('clean'); document.body.classList.add('peek-on'); requestWake();
     $('.peek-dots', el).innerHTML = items.map(() => '<i></i>').join('');
+    paintPeekSound();
     peekIntro();
   }
   function closePeek() {
     if (!peek) return;
-    clearTimeout(peek.timer); clearTimeout(peek.cleanTimer);
-    const el = $('#peek'); if (el) { el.classList.remove('clean'); $('.peek-hint', el).hidden = true; const v = $('video', el); if (v) { v.pause(); v.removeAttribute('src'); } $('.peek-stage', el).innerHTML = ''; el.hidden = true; }
+    clearTimeout(peek.timer); clearTimeout(peek.cleanTimer); clearTimeout(peek.wordTimer);
+    const el = $('#peek'); if (el) { el.classList.remove('clean'); $('.peek-hint', el).hidden = true; $('.peek-word', el).className = 'peek-word'; const v = $('video', el); if (v) { v.pause(); v.removeAttribute('src'); } $('.peek-stage', el).innerHTML = ''; el.hidden = true; }
     peek.urls.forEach((u) => URL.revokeObjectURL(u)); peek = null; document.body.classList.remove('peek-on');
+    droneStop();
   }
-  // טיזר: מילה אחת לכל משימה, לפי הקטגוריה, בלי לגלות את המשימה עצמה
-  const PEEK_TEASE = {"control": [["ציות", "פקודה", "שליטה"], ["Obedience", "Command", "Control"]], "sensory": [["חושים", "עיניים עצומות", "רעד"], ["Senses", "Eyes closed", "Shiver"]], "bondage": [["קשר", "חבל", "בלי תנועה"], ["Knot", "Rope", "Still"]], "impact": [["צליפה", "כף יד", "אדום"], ["Sting", "Palm", "Red"]], "denial": [["המתנה", "כמעט", "עוד לא"], ["Waiting", "Almost", "Not yet"]], "roleplay": [["דמות", "מסכה", "משחק"], ["Character", "Mask", "Play"]], "oral": [["שפתיים", "לשון", "ברכיים"], ["Lips", "Tongue", "Knees"]], "toys": [["צעצוע", "זמזום", "הפתעה"], ["Toy", "Hum", "Surprise"]], "words": [["מילים", "לחישה", "פקודה"], ["Words", "Whisper", "Order"]], "exhibit": [["מבטים", "ראווה", "חשיפה"], ["Eyes on you", "Display", "Exposed"]], "anal": [["מאחור", "לאט", "עומק"], ["Behind", "Slowly", "Deep"]], "feet": [["כפות", "רצפה", "נשיקה"], ["Feet", "Floor", "Kiss"]], "throat": [["אחיזה", "צוואר", "נשימה"], ["Grip", "Neck", "Breath"]], "fluids": [["רטוב", "זרם", "טעם"], ["Wet", "Stream", "Taste"]], "cum": [["סיום", "שיא", "סימון"], ["Finish", "Peak", "Marked"]], "aftercare": [["חיבוק", "מים", "שקט"], ["Hold", "Water", "Quiet"]]};
-  function teaseWord(c) { const t = PEEK_TEASE[c.cat]; if (!t) return ''; const list = isEn() ? t[1] : t[0]; let h = 0; for (let k = 0; k < c.id.length; k++) h = (h * 31 + c.id.charCodeAt(k)) >>> 0; return list[h % list.length]; }
-  const peekUnitOne = () => (APP_ID === 'masks' ? (isEn() ? 'Scene' : 'סצנה') : (isEn() ? 'Task' : 'משימה'));
+  // מילה על גבי הווידאו: שם הקטגוריה נכנס ויוצא מעל הקליפ עצמו
+  function showWord(text, cls, ms) {
+    const el = peekEl(), w = $('.peek-word', el);
+    clearTimeout(peek.wordTimer);
+    w.className = 'peek-word'; void w.offsetWidth; // איפוס האנימציה
+    w.innerHTML = text; w.className = 'peek-word on ' + (cls || ''); w.style.setProperty('--dur', (ms / 1000) + 's');
+    peek.wordTimer = setTimeout(() => { if (w.className.indexOf('on') >= 0) w.className = 'peek-word'; }, ms + 80);
+  }
   function peekIntro() {
-    const el = peekEl(), stage = $('.peek-stage', el), n = S.session ? S.session.cards.length : peek.items.length;
-    peek.phase = 'intro'; peek.i = 0; peek.done = false; peek.paused = false;
-    $('.peek-prog', el).textContent = ''; $('.peek-cap', el).hidden = true; $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
-    stage.innerHTML = `<div class="peek-title intro"><small>${isEn() ? 'Tonight' : 'הערב'}</small><h1>${esc(roleName('D'))} &amp; ${esc(roleName('S'))}</h1><p>${n} ${PEEK_UNIT()} · ${isEn() ? 'from gentle to intense' : 'מהקל אל הכבד'}</p></div>`;
-    peek.timer = setTimeout(() => peekGo(0), 2400);
+    const el = peekEl(), stage = $('.peek-stage', el);
+    clearTimeout(peek.timer); clearTimeout(peek.cleanTimer);
+    peek.phase = 'intro'; peek.i = 0; peek.done = false; peek.paused = false; el.classList.remove('clean');
+    $('.peek-prog', el).textContent = ''; $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
+    $$('.peek-dots i', el).forEach((d) => { d.classList.remove('on', 'done'); });
+    stage.innerHTML = '<div class="peek-black"></div>';
+    droneStart(); boom(0.8);
+    showWord(`<small>${isEn() ? 'Tonight' : 'הערב'}</small><b>${esc(roleName('D'))} &amp; ${esc(roleName('S'))}</b>`, 'intro', 2400);
+    peek.timer = setTimeout(() => peekGo(0), 2500);
   }
-  // כרטיס מעבר בין משימה למשימה, כמו בטיזר: מספר, קטגוריה, עוצמה ורמז קצר
-  function peekTitle(i) {
-    const el = peekEl(), stage = $('.peek-stage', el), it = peek.items[i], c = it.c, cat = catOf(c.cat) || { name: '' }, n = S.session ? S.session.cards.length : peek.items.length;
-    peek.phase = 'title'; peek.i = i; peek.done = false; peek.paused = false;
-    const dots = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((k) => `<i class="${k <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
-    const tease = teaseWord(c);
-    const to = c.to === 'B' ? (isEn() ? 'For both of you' : 'לשניכם') : (isEn() ? 'For ' : 'ל') + roleName(c.to);
-    $('.peek-prog', el).textContent = `${it.i + 1} / ${n}`; $('.peek-cap', el).hidden = true; $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
-    $$('.peek-dots i', el).forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
-    stage.innerHTML = `<div class="peek-title"><small>${peekUnitOne()} ${it.i + 1}</small><h1>${esc(cat.name || '')}</h1><div class="pt-meta">${dots}<span class="chip to">${esc(to)}</span></div><p class="pt-word">${esc(tease)}</p></div>`;
-    peek.timer = setTimeout(() => peekGo(i, true), 1900);
-  }
-  async function peekGo(i, afterTitle) {
+  async function peekGo(i) {
     if (!peek) return; clearTimeout(peek.timer); clearTimeout(peek.cleanTimer);
-    if (!afterTitle && i >= 0 && i < peek.items.length) return peekTitle(i);
     const el = peekEl(), stage = $('.peek-stage', el), items = peek.items, n = S.session ? S.session.cards.length : items.length;
     if (i >= items.length) {
-      peek.i = items.length; peek.done = true;
-      stage.innerHTML = `<div class="peek-end"><div class="home-emblem">${illus('heart')}</div><h1>${isEn() ? 'That is the evening ahead' : 'זה הערב שמצפה לכם'}</h1><p class="lead">${n} ${PEEK_UNIT()}${isEn() ? ', from gentle to intense.' : ', מהקל אל הכבד.'}</p><button type="button" class="btn primary big" data-pk="start">${isEn() ? 'Start the first one' : (APP_ID === 'masks' ? 'לסצנה הראשונה' : 'למשימה הראשונה')}</button><button type="button" class="btn ghost" data-pk="prev">${isEn() ? 'Watch again' : 'לצפות שוב'}</button></div>`;
-      $('.peek-prog', el).textContent = ''; $('.peek-cap', el).hidden = true; $('.peek-bar', el).hidden = true; $$('.peek-dots i', el).forEach((d) => { d.classList.remove('on'); d.classList.add('done'); }); return;
+      peek.i = items.length; peek.done = true; peek.phase = 'end';
+      el.classList.remove('clean'); $('.peek-word', el).className = 'peek-word';
+      droneStop(); boom(1.1);
+      stage.innerHTML = `<div class="peek-end"><div class="home-emblem">${illus('heart')}</div><h1>${isEn() ? 'Tonight.' : 'הערב.'}</h1><p class="lead">${n} ${PEEK_UNIT()}${isEn() ? ', from gentle to intense.' : ', מהקל אל הכבד.'}</p><button type="button" class="btn primary big" data-pk="start">${isEn() ? 'Begin' : 'מתחילים'}</button><button type="button" class="btn ghost" data-pk="prev">${isEn() ? 'Watch again' : 'לצפות שוב'}</button></div>`;
+      $('.peek-prog', el).textContent = ''; $('.peek-bar', el).hidden = true; $$('.peek-dots i', el).forEach((d) => { d.classList.remove('on'); d.classList.add('done'); }); return;
     }
     if (i < 0) i = 0;
     peek.i = i; peek.done = false; peek.paused = false; peek.phase = 'media';
     const it = items[i], c = it.c, cat = catOf(c.cat) || { name: '' };
-    $('.peek-prog', el).textContent = `${it.i + 1} / ${n}`;
-    $('.peek-cap', el).hidden = false; $('.peek-bar', el).hidden = false;
-    $('.peek-cap .chip', el).textContent = cat.name || ''; $('.peek-cap p', el).textContent = teaseWord(c);
+    $('.peek-prog', el).textContent = `${i + 1} / ${items.length}`;
+    $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
     $$('.peek-dots i', el).forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
-    $('[data-pk=toggle]', el).textContent = '⏸';
-    stage.innerHTML = `<div class="peek-load">${illus('hourglass')}</div>`;
+    // מעבר קצר דרך שחור
+    stage.innerHTML = '<div class="peek-black"></div>';
     const rec = await Media.getFile(it.key);
-    if (!peek || peek.i !== i) return;
-    if (!rec || !rec.blob) { peek.timer = setTimeout(() => peekGo(i + 1), 600); return; }
+    if (!peek || peek.i !== i || peek.phase !== 'media') return;
+    if (!rec || !rec.blob) { peek.timer = setTimeout(() => peekGo(i + 1), 500); return; }
     const u = URL.createObjectURL(rec.blob); peek.urls.push(u);
     const wide = tvOn || (window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
     if (wide) peek.cleanTimer = setTimeout(() => { if (peek && peek.phase === 'media') el.classList.add('clean'); }, 2500);
-    if (!peek.hinted) { peek.hinted = true; const h = $('.peek-hint', el); h.textContent = isEn() ? 'Tap the screen to hide the text and buttons. Tap again to bring them back.' : 'הקשה על המסך מסתירה את הכיתוב והכפתורים. הקשה נוספת מחזירה אותם.'; h.hidden = false; setTimeout(() => { h.hidden = true; }, 3200); }
+    if (!peek.hinted) { peek.hinted = true; const h = $('.peek-hint', el); h.textContent = isEn() ? 'Tap the screen to hide the buttons. Tap again to bring them back.' : 'הקשה על המסך מסתירה את הכפתורים. הקשה נוספת מחזירה אותם.'; h.hidden = false; setTimeout(() => { h.hidden = true; }, 3200); }
+    const clipSound = peekSoundMode() === 'clips' && !S.videoMuted && !(window.Music && Music.playing);
+    boom(1); if (i === items.length - 1) setTimeout(() => { if (peek && peek.i === i) riser(1.6); }, rec.kind === 'image' ? 3200 : 800);
     if (rec.kind === 'video') {
       stage.innerHTML = `<video class="pk-in" src="${u}" playsinline autoplay preload="auto"></video>`;
       const v = $('video', stage);
-      v.muted = !!S.videoMuted || !!(window.Music && Music.playing); v.volume = 1;
+      v.muted = !clipSound; v.volume = 1;
       v.addEventListener('ended', () => { if (peek && peek.i === i) peekGo(i + 1); });
       v.addEventListener('error', () => { if (peek && peek.i === i) peek.timer = setTimeout(() => peekGo(i + 1), 1200); });
       const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
@@ -490,21 +550,24 @@
       stage.innerHTML = `<img class="pk-in pk-kb" src="${u}" alt="">`;
       peek.timer = setTimeout(() => peekGo(i + 1), 5000);
     }
+    // שם הקטגוריה נכנס מעל הקליפ עצמו, ונעלם אחרי רגע
+    setTimeout(() => { if (peek && peek.i === i && peek.phase === 'media') showWord(`<b>${esc(cat.name || '')}</b>`, 'cat', 2300); }, 350);
   }
   function peekToggle() {
     if (!peek || peek.done) return;
     const el = peekEl(), v = $('.peek-stage video', el);
     peek.paused = !peek.paused;
     $('[data-pk=toggle]', el).textContent = peek.paused ? '▶' : '⏸';
+    peekAudioPause(peek.paused);
     if (v) { if (peek.paused) v.pause(); else v.play().catch(() => {}); }
-    else if (peek.paused) clearTimeout(peek.timer); else peek.timer = setTimeout(() => (peek.phase === 'title' ? peekGo(peek.i, true) : (peek.phase === 'intro' ? peekGo(0) : peekGo(peek.i + 1))), 1200);
+    else if (peek.paused) clearTimeout(peek.timer); else peek.timer = setTimeout(() => (peek.phase === 'intro' ? peekGo(0) : peekGo(peek.i + 1)), 1500);
   }
   // אחרי בניית ערב: הצעה להציץ בו
   function offerPeek() {
     const items = peekItems(); if (!items.length) return;
     const n = S.session.cards.length;
-    dialog(`<h2>${isEn() ? 'The evening is ready' : 'הערב מוכן'}</h2><p>${isEn() ? `${n} ${PEEK_UNIT()}, ${items.length} of them with a video or picture. Peek at the evening ahead, one clip after another?` : `${n} ${PEEK_UNIT()}, ${items.length} מהן עם סרטון או תמונה. להציץ לערב שמצפה לכם, קליפ אחרי קליפ?`}</p>`,
-      [{ label: isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו', cls: 'primary', onClick: () => { setTimeout(openPeek, 30); } }, { label: isEn() ? 'Straight to the first one' : (APP_ID === 'masks' ? 'ישר לסצנה הראשונה' : 'ישר למשימה הראשונה') }]);
+    dialog(`<h2>${isEn() ? 'The evening is ready' : 'הערב מוכן'}</h2><p>${isEn() ? `${n} ${PEEK_UNIT()}, ${items.length} of them with a video or picture. Watch the teaser of the evening ahead?` : `${n} ${PEEK_UNIT()}, ${items.length} מהן עם סרטון או תמונה. לצפות בטיזר של הערב שמצפה לכם?`}</p>`,
+      [{ label: isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו', cls: 'primary', onClick: () => { peekAudioInit(); setTimeout(openPeek, 30); } }, { label: isEn() ? 'Straight to the first one' : (APP_ID === 'masks' ? 'ישר לסצנה הראשונה' : 'ישר למשימה הראשונה') }]);
   }
   $('#btn-peek').addEventListener('click', openPeek);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && peek) closePeek(); });

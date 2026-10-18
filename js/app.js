@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.57';
+  const APP_VERSION = '2026.10.18.58';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -396,6 +396,91 @@
   }
 
   // ---------- בית ----------
+  // ---------- הצצה לערב: כל הסרטונים והתמונות של משימות הערב, ברצף אחד ----------
+  const PEEK_UNIT = () => (APP_ID === 'masks' ? (isEn() ? 'scenes' : 'סצנות') : (isEn() ? 'tasks' : 'משימות'));
+  function peekItems() {
+    const s = S.session; if (!s || SAFE_MODE) return [];
+    const out = [];
+    s.cards.forEach((id, i) => { const c = cardById(id); if (!c) return; const m = S.media[c.id] || {}; const v = activeVidSlot(m), im = v ? null : activeImgSlot(m); const slot = v || im; if (!slot) return; out.push({ c, i, key: mediaKey(c.id, slot), kind: v ? 'video' : 'image' }); });
+    return out;
+  }
+  let peek = null;
+  function peekEl() {
+    let el = $('#peek'); if (el) return el;
+    el = document.createElement('div'); el.id = 'peek'; el.className = 'overlay peek'; el.hidden = true;
+    el.innerHTML = `<div class="peek-stage"></div><div class="peek-top"><span class="peek-prog"></span><button type="button" class="btn small ghost" data-pk="close">✕</button></div><div class="peek-cap"><span class="chip cat"></span><p></p></div><div class="peek-dots"></div><div class="peek-bar"><button type="button" class="pk-btn" data-pk="prev">⏮</button><button type="button" class="pk-btn" data-pk="toggle">⏸</button><button type="button" class="pk-btn" data-pk="next">⏭</button></div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pk]');
+      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') peekGo(peek.done ? 0 : peek.i - 1); else if (a === 'toggle') peekToggle(); else if (a === 'start') { closePeek(); startPlay('session'); } return; }
+      if (e.target.closest('.peek-stage')) peekToggle();
+    });
+    return el;
+  }
+  function openPeek() {
+    const items = peekItems(); if (!items.length) return;
+    closePeek();
+    peek = { items, i: 0, timer: null, urls: [], paused: false, done: false };
+    const el = peekEl(); el.hidden = false; document.body.classList.add('peek-on'); requestWake();
+    $('.peek-dots', el).innerHTML = items.map(() => '<i></i>').join('');
+    peekGo(0);
+  }
+  function closePeek() {
+    if (!peek) return;
+    clearTimeout(peek.timer);
+    const el = $('#peek'); if (el) { const v = $('video', el); if (v) { v.pause(); v.removeAttribute('src'); } $('.peek-stage', el).innerHTML = ''; el.hidden = true; }
+    peek.urls.forEach((u) => URL.revokeObjectURL(u)); peek = null; document.body.classList.remove('peek-on');
+  }
+  async function peekGo(i) {
+    if (!peek) return; clearTimeout(peek.timer);
+    const el = peekEl(), stage = $('.peek-stage', el), items = peek.items, n = S.session ? S.session.cards.length : items.length;
+    if (i >= items.length) {
+      peek.i = items.length; peek.done = true;
+      stage.innerHTML = `<div class="peek-end"><div class="home-emblem">${illus('heart')}</div><h1>${isEn() ? 'That is the evening ahead' : 'זה הערב שמצפה לכם'}</h1><p class="lead">${n} ${PEEK_UNIT()}${isEn() ? ', from gentle to intense.' : ', מהקל אל הכבד.'}</p><button type="button" class="btn primary big" data-pk="start">${isEn() ? 'Start the first one' : (APP_ID === 'masks' ? 'לסצנה הראשונה' : 'למשימה הראשונה')}</button><button type="button" class="btn ghost" data-pk="prev">${isEn() ? 'Watch again' : 'לצפות שוב'}</button></div>`;
+      $('.peek-prog', el).textContent = ''; $('.peek-cap', el).hidden = true; $('.peek-bar', el).hidden = true; $$('.peek-dots i', el).forEach((d) => { d.classList.remove('on'); d.classList.add('done'); }); return;
+    }
+    if (i < 0) i = 0;
+    peek.i = i; peek.done = false; peek.paused = false;
+    const it = items[i], c = it.c, cat = catOf(c.cat) || { name: '' };
+    $('.peek-prog', el).textContent = `${it.i + 1} / ${n}`;
+    $('.peek-cap', el).hidden = false; $('.peek-bar', el).hidden = false;
+    $('.peek-cap .chip', el).textContent = cat.name || ''; $('.peek-cap p', el).textContent = plainText(c).slice(0, 140);
+    $$('.peek-dots i', el).forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
+    $('[data-pk=toggle]', el).textContent = '⏸';
+    stage.innerHTML = `<div class="peek-load">${illus('hourglass')}</div>`;
+    const rec = await Media.getFile(it.key);
+    if (!peek || peek.i !== i) return;
+    if (!rec || !rec.blob) { peek.timer = setTimeout(() => peekGo(i + 1), 600); return; }
+    const u = URL.createObjectURL(rec.blob); peek.urls.push(u);
+    if (rec.kind === 'video') {
+      stage.innerHTML = `<video src="${u}" playsinline autoplay preload="auto"></video>`;
+      const v = $('video', stage);
+      v.muted = !!S.videoMuted || !!(window.Music && Music.playing); v.volume = 1;
+      v.addEventListener('ended', () => { if (peek && peek.i === i) peekGo(i + 1); });
+      v.addEventListener('error', () => { if (peek && peek.i === i) peek.timer = setTimeout(() => peekGo(i + 1), 1200); });
+      const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
+    } else {
+      stage.innerHTML = `<img src="${u}" alt="">`;
+      peek.timer = setTimeout(() => peekGo(i + 1), 5000);
+    }
+  }
+  function peekToggle() {
+    if (!peek || peek.done) return;
+    const el = peekEl(), v = $('.peek-stage video', el);
+    peek.paused = !peek.paused;
+    $('[data-pk=toggle]', el).textContent = peek.paused ? '▶' : '⏸';
+    if (v) { if (peek.paused) v.pause(); else v.play().catch(() => {}); }
+    else if (peek.paused) clearTimeout(peek.timer); else peek.timer = setTimeout(() => peekGo(peek.i + 1), 3000);
+  }
+  // אחרי בניית ערב: הצעה להציץ בו
+  function offerPeek() {
+    const items = peekItems(); if (!items.length) return;
+    const n = S.session.cards.length;
+    dialog(`<h2>${isEn() ? 'The evening is ready' : 'הערב מוכן'}</h2><p>${isEn() ? `${n} ${PEEK_UNIT()}, ${items.length} of them with a video or picture. Peek at the evening ahead, one clip after another?` : `${n} ${PEEK_UNIT()}, ${items.length} מהן עם סרטון או תמונה. להציץ לערב שמצפה לכם, קליפ אחרי קליפ?`}</p>`,
+      [{ label: isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו', cls: 'primary', onClick: () => { setTimeout(openPeek, 30); } }, { label: isEn() ? 'Straight to the first one' : (APP_ID === 'masks' ? 'ישר לסצנה הראשונה' : 'ישר למשימה הראשונה') }]);
+  }
+  $('#btn-peek').addEventListener('click', openPeek);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && peek) closePeek(); });
   function renderHome() {
     const c = ctx();
     const modeTxt = { fixed: '', alternate: ' · מתחלף כל משימה', random: ' · הגרלה בכל ערב' }[S.roleMode] || '';
@@ -410,6 +495,7 @@
     seg($('#home-mode-seg'), S.roleMode || 'fixed', (v) => { S.roleMode = v; save(); renderHome(); });
     const ses = S.session;
     $('#btn-resume').hidden = !(ses && ses.idx < ses.cards.length);
+    const pk = $('#btn-peek'); pk.hidden = !(ses && ses.idx < ses.cards.length && peekItems().length); pk.textContent = isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו';
     if (ses) $('#btn-resume').textContent = `המשך ערב (${Math.min(ses.idx + 1, ses.cards.length)}/${ses.cards.length})`;
     const n = pool().length;
     $('#home-allowed').innerHTML = `<div class="chips">${CATEGORIES.filter((k) => catAllowed(k.id)).map((k) => `<span class="chip">${k.name}</span>`).join('') || '<span class="chip off">אין קטגוריות מותרות</span>'}</div>
@@ -422,10 +508,10 @@
         S.dom = Math.random() < 0.5 ? 'a' : 'b'; S.eveningAlt = Math.random() < 0.5; save();
         const c = ctx();
         dialog(`<h2>ההגרלה</h2><div class="draw"><div class="draw-row">${illus('key')}<b>${c.D}</b> ${c.dg === 'm' ? 'מוביל' : 'מובילה'}${S.eveningAlt ? ' ראשון' : ' את כל הערב'}</div><div class="draw-row">${illus(S.eveningAlt ? 'cuffs' : 'lock')}<b>${S.eveningAlt ? 'מתחלף כל משימה' : 'קבוע כל הערב'}</b></div></div>`,
-          [{ label: 'מתחילים', cls: 'primary', onClick: () => { buildSession(); startPlay('session'); } }]);
+          [{ label: 'מתחילים', cls: 'primary', onClick: () => { buildSession(); startPlay('session'); setTimeout(offerPeek, 60); } }]);
         return true; // הדיאלוג של ההגרלה נשאר פתוח גם כשנקרא מתוך דיאלוג האישור
       }
-      buildSession(); startPlay('session');
+      buildSession(); startPlay('session'); setTimeout(offerPeek, 60);
     };
     if (S.session && S.session.idx < S.session.cards.length) dialog('<h2>ערב חדש?</h2><p>הערב הנוכחי יימחק ותיבנה חפיסה חדשה.</p>', [{ label: 'כן, ערב חדש', cls: 'primary', onClick: () => go() }, { label: 'ביטול' }]);
     else go();
@@ -520,7 +606,7 @@
     host.innerHTML = cardHtml(c); hydrateCard(host);
     $$('[data-vp]', host).forEach((b) => b.addEventListener('click', () => { S.vidPref = b.dataset.vp; save(); renderPlay(); }));
     const fav = S.favorites.includes(c.id);
-    const tools = `<div class="row gap tools">${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}<button class="btn ghost small" id="pa-tv">📺 טלוויזיה</button></div>`;
+    const tools = `<div class="row gap tools">${S.tts.mode !== 'off' ? '<button class="btn ghost small" id="pa-speak">🔊 הקראה</button>' : ''}<button class="btn ghost small" id="pa-tv">📺 טלוויזיה</button>${playMode === 'session' && peekItems().length ? `<button class="btn ghost small" id="pa-peek">👁 ${isEn() ? 'Peek' : 'הצצה'}</button>` : ''}</div>`;
     acts.innerHTML = playMode === 'session'
       ? `<button class="btn primary big" id="pa-done">בוצע, הבא</button>
          <div class="row gap">
@@ -534,6 +620,7 @@
            <button class="btn ghost" id="pa-hide">לא שוב</button>
          </div>${tools}`;
     $('#pa-tv').addEventListener('click', enterTv);
+    $('#pa-peek') && $('#pa-peek').addEventListener('click', openPeek);
     $('#pa-speak') && $('#pa-speak').addEventListener('click', () => speak(plainText(c)));
     const next = () => { sessionAdvance(); renderPlay(); };
     $('#pa-done') && $('#pa-done').addEventListener('click', next);

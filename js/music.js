@@ -82,6 +82,7 @@
     const st = e.data, YTp = window.YT && window.YT.PlayerState;
     if (!YTp) return;
     playing = st === YTp.PLAYING || st === YTp.BUFFERING;
+    notify();
     try { const d = yt.getVideoData(); if (d && d.title) { nowTitle = d.title; if (current && current.kind === 'video' && !current.title) { current.title = d.title; const f = favs.find((x) => same(x, current)); if (f) { f.title = d.title; saveFavs(); } cfg.last = current; saveCfg(); } } } catch (err) { /* */ }
     if (st === YTp.ENDED && current && current.kind === 'video') { try { yt.seekTo(0); yt.playVideo(); } catch (err) { /* */ } }
     if (st === YTp.PLAYING) statusMsg = '';
@@ -123,7 +124,9 @@
   function toggle() { if (!yt) { if (current) play(current); return; } try { if (playing) yt.pauseVideo(); else yt.playVideo(); } catch (e) { /* */ } }
   function next() { if (yt && current && current.kind === 'list') { try { yt.nextVideo(); } catch (e) { /* */ } } }
   function pause() { if (yt && playing) { try { yt.pauseVideo(); } catch (e) { /* */ } } }
-  function stop() { if (yt) { try { yt.stopVideo(); } catch (e) { /* */ } } playing = false; showBar(false); paintScreen(); }
+  function stop() { if (yt) { try { yt.stopVideo(); } catch (e) { /* */ } } playing = false; notify(); showBar(false); paintScreen(); }
+  // כשהמוזיקה מתנגנת, סרטוני המשימות מושתקים אוטומטית (האפליקציה מאזינה לאירוע הזה)
+  function notify() { try { document.dispatchEvent(new CustomEvent('music:state', { detail: { playing } })); } catch (e) { /* */ } }
   function setVolume(v) { cfg.vol = Math.max(0, Math.min(100, +v || 0)); saveCfg(); if (yt) { try { yt.setVolume(cfg.vol); } catch (e) { /* */ } } }
   function toggleFav(it) {
     const i = favs.findIndex((f) => same(f, it));

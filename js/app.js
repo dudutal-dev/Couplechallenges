@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.56';
+  const APP_VERSION = '2026.10.18.57';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -845,13 +845,16 @@
     }
   }
   // ניגון עם קול. אם הדפדפן חוסם אוטו-פליי עם קול, מנגנים בשקט ומציגים כפתור ״הפעלת קול״ שלחיצה אחת עליו פותחת את הקול
+  // מוזיקת רקע: כשהיא מתחילה, כל סרטוני המשימות שמתנגנים מושתקים; כשהיא נעצרת, הקול חוזר אם לא כובה ידנית
+  document.addEventListener('music:state', (e) => { const on = !!(e.detail && e.detail.playing); $$('#card-host video, #tv-stage video, #lightbox video, #scr-editor video').forEach((v) => { v.muted = on || !!S.videoMuted; }); $$('.vid-sound').forEach((b) => { b.hidden = on; }); });
   function playWithSound(v, host) {
     if (!v) return;
-    v.muted = !!S.videoMuted; v.volume = 1;
+    const musicOn = !!(window.Music && Music.playing); // מוזיקת רקע מתנגנת: הסרטון מושתק אוטומטית
+    v.muted = !!S.videoMuted || musicOn; v.volume = 1;
     const p = v.play();
     if (!p || !p.catch) return;
     p.catch(() => {
-      if (v.muted) return;
+      if (v.muted || musicOn) return;
       v.muted = true;
       v.play().catch(() => {});
       const b = document.createElement('button'); b.type = 'button'; b.className = 'vid-sound'; b.textContent = '🔊 הפעלת קול';

@@ -218,6 +218,7 @@ const I18N = {
 "מסור/י את הטלפון": "Hand over the phone",
 "🎵 מוזיקת רקע (YouTube) לכל ערב": "🎵 Background music (YouTube) for every evening",
 "מוזיקת רקע": "Background music",
+"👁 הצצה": "👁 Peek",
 "👁 הצצה לערב שמצפה לנו": "👁 Peek at the evening ahead",
 "סיימתי, מסתיר את התשובות": "Done, hiding my answers",
 "מה מותר הערב": "What is allowed tonight",

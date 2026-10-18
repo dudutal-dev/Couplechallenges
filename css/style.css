@@ -541,3 +541,8 @@ body.peek-on .music-bar{display:none}
 .peek-title .pt-meta{display:flex;align-items:center;gap:10px}
 .peek-title::after{content:"";display:block;height:2px;width:0;background:var(--gold2);margin-top:6px;animation:pkLine 1.9s linear both}
 .peek-title.intro::after{animation-duration:2.4s}
+
+/* הצצה: מצב נקי (הקשה מסתירה את הכיתוב) ורמז */
+.peek-top,.peek-cap,.peek-dots,.peek-bar{transition:opacity .25s ease}
+.peek.clean .peek-top,.peek.clean .peek-cap,.peek.clean .peek-dots,.peek.clean .peek-bar{opacity:0;pointer-events:none}
+.peek-hint{position:absolute;top:calc(56px + var(--safe-t));left:50%;transform:translateX(-50%);z-index:4;background:#000c;color:#fff;font-size:.82rem;padding:8px 14px;border-radius:999px;border:1px solid #fff3;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;animation:fade .3s}

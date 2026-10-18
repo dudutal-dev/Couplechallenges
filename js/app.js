@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.59';
+  const APP_VERSION = '2026.10.18.60';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -408,12 +408,12 @@
   function peekEl() {
     let el = $('#peek'); if (el) return el;
     el = document.createElement('div'); el.id = 'peek'; el.className = 'overlay peek'; el.hidden = true;
-    el.innerHTML = `<div class="peek-stage"></div><div class="peek-top"><span class="peek-prog"></span><button type="button" class="btn small ghost" data-pk="close">✕</button></div><div class="peek-cap"><span class="chip cat"></span><p></p></div><div class="peek-dots"></div><div class="peek-bar"><button type="button" class="pk-btn" data-pk="prev">⏮</button><button type="button" class="pk-btn" data-pk="toggle">⏸</button><button type="button" class="pk-btn" data-pk="next">⏭</button></div>`;
+    el.innerHTML = `<div class="peek-stage"></div><div class="peek-hint" hidden></div><div class="peek-top"><span class="peek-prog"></span><button type="button" class="btn small ghost" data-pk="close">✕</button></div><div class="peek-cap"><span class="chip cat"></span><p></p></div><div class="peek-dots"></div><div class="peek-bar"><button type="button" class="pk-btn" data-pk="prev">⏮</button><button type="button" class="pk-btn" data-pk="toggle">⏸</button><button type="button" class="pk-btn" data-pk="next">⏭</button></div>`;
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pk]');
       if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') { if (peek.done) { peekIntro(); } else peekGo(peek.phase === 'media' ? peek.i : peek.i - 1); } else if (a === 'toggle') peekToggle(); else if (a === 'start') { closePeek(); startPlay('session'); } return; }
-      if (e.target.closest('.peek-stage')) peekToggle();
+      if (e.target.closest('.peek-stage')) { if (!peek) return; if (peek.phase === 'intro') peekGo(0); else if (peek.phase === 'title') peekGo(peek.i, true); else if (peek.phase === 'media') { clearTimeout(peek.cleanTimer); el.classList.toggle('clean'); } }
     });
     return el;
   }
@@ -421,14 +421,14 @@
     const items = peekItems(); if (!items.length) return;
     closePeek();
     peek = { items, i: 0, timer: null, urls: [], paused: false, done: false };
-    const el = peekEl(); el.hidden = false; document.body.classList.add('peek-on'); requestWake();
+    const el = peekEl(); el.hidden = false; el.classList.remove('clean'); document.body.classList.add('peek-on'); requestWake();
     $('.peek-dots', el).innerHTML = items.map(() => '<i></i>').join('');
     peekIntro();
   }
   function closePeek() {
     if (!peek) return;
-    clearTimeout(peek.timer);
-    const el = $('#peek'); if (el) { const v = $('video', el); if (v) { v.pause(); v.removeAttribute('src'); } $('.peek-stage', el).innerHTML = ''; el.hidden = true; }
+    clearTimeout(peek.timer); clearTimeout(peek.cleanTimer);
+    const el = $('#peek'); if (el) { el.classList.remove('clean'); $('.peek-hint', el).hidden = true; const v = $('video', el); if (v) { v.pause(); v.removeAttribute('src'); } $('.peek-stage', el).innerHTML = ''; el.hidden = true; }
     peek.urls.forEach((u) => URL.revokeObjectURL(u)); peek = null; document.body.classList.remove('peek-on');
   }
   const peekUnitOne = () => (APP_ID === 'masks' ? (isEn() ? 'Scene' : 'סצנה') : (isEn() ? 'Task' : 'משימה'));
@@ -452,7 +452,7 @@
     peek.timer = setTimeout(() => peekGo(i, true), 1900);
   }
   async function peekGo(i, afterTitle) {
-    if (!peek) return; clearTimeout(peek.timer);
+    if (!peek) return; clearTimeout(peek.timer); clearTimeout(peek.cleanTimer);
     if (!afterTitle && i >= 0 && i < peek.items.length) return peekTitle(i);
     const el = peekEl(), stage = $('.peek-stage', el), items = peek.items, n = S.session ? S.session.cards.length : items.length;
     if (i >= items.length) {
@@ -473,6 +473,9 @@
     if (!peek || peek.i !== i) return;
     if (!rec || !rec.blob) { peek.timer = setTimeout(() => peekGo(i + 1), 600); return; }
     const u = URL.createObjectURL(rec.blob); peek.urls.push(u);
+    const wide = tvOn || (window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
+    if (wide) peek.cleanTimer = setTimeout(() => { if (peek && peek.phase === 'media') el.classList.add('clean'); }, 2500);
+    if (!peek.hinted) { peek.hinted = true; const h = $('.peek-hint', el); h.textContent = isEn() ? 'Tap the screen to hide the text and buttons. Tap again to bring them back.' : 'הקשה על המסך מסתירה את הכיתוב והכפתורים. הקשה נוספת מחזירה אותם.'; h.hidden = false; setTimeout(() => { h.hidden = true; }, 3200); }
     if (rec.kind === 'video') {
       stage.innerHTML = `<video class="pk-in" src="${u}" playsinline autoplay preload="auto"></video>`;
       const v = $('video', stage);
@@ -1245,6 +1248,7 @@ EXAMPLE corset:
         ${c.min ? `<button class="tv-btn" data-tv="timer" data-min="${c.min}">⏱ ${c.min} דק׳</button>` : ''}
         ${typeAvailable(S.media[c.id] || {}, 'personal') && typeAvailable(S.media[c.id] || {}, 'demo') ? `<button class="tv-btn" data-tv="vidpref">${activeVidType(S.media[c.id] || {}) === 'personal' ? 'להדגמה' : 'לסרטון האישי'}</button>` : ''}
         ${hasMedia(c.id) ? `<button class="tv-btn" data-tv="vfull">${tvVideoFull ? 'חזרה לכרטיס' : (activeVidSlot(S.media[c.id] || {}) ? '⛶ סרטון במסך מלא' : '⛶ תמונה במסך מלא')}</button>` : ''}
+        ${playMode === 'session' && peekItems().length ? '<button class="tv-btn" data-tv="peek">👁 הצצה</button>' : ''}
         <button class="tv-btn" data-tv="dice">קוביות</button>
         <button class="tv-btn" data-tv="cast" ${'PresentationRequest' in window ? '' : 'hidden'}>${tvConn ? '📡 משודר' : '📡 Chromecast'}</button>
         <button class="tv-btn" data-tv="exit">יציאה</button>
@@ -1291,6 +1295,7 @@ EXAMPLE corset:
   function tvAction(a, b) {
     const c = currentCard();
     if (a === 'exit') return exitTv();
+    if (a === 'peek') return openPeek();
     if (a === 'stop') return openStop();
     if (a === 'next') { if (playMode === 'session') sessionAdvance(); else pickRandom(); tvView = 'card'; return renderTv(); }
     if (a === 'skip') { if (c) sessionSkip(c); return renderTv(); }

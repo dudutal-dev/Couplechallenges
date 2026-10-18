@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.54';
+  const APP_VERSION = '2026.10.18.55';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -152,7 +152,7 @@
   }
 
   // ---------- ניווט ----------
-  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts', 'ai', 'tv', 'list', 'about'];
+  const SCREENS = ['lock', 'setup', 'home', 'play', 'dice', 'timer', 'more', 'editor', 'cardform', 'limits', 'safety', 'tts', 'ai', 'tv', 'list', 'about', 'music'];
   const TABS = { home: 'home', random: 'play', dice: 'dice', timer: 'timer', more: 'more' };
   let current = 'home';
   function show(name) {
@@ -170,6 +170,7 @@
     if (name === 'tts') renderTts();
     if (name === 'ai') renderAi();
     if (name === 'list') renderCopyList();
+    if (name === 'music' && window.Music) Music.render($('#music-body'));
     if (name === 'about') { const b = $('#about-back'); b.dataset.go = S.setupDone ? 'more' : 'setup'; b.textContent = S.setupDone ? '‹ עוד' : '‹ חזרה'; window.scrollTo(0, 0); }
   }
   $$('#tabbar button').forEach((b) => b.addEventListener('click', () => {
@@ -454,6 +455,7 @@
     const after = shuffle(CARDS.filter((c) => c.cat === AFTERCARE_ID))[0];
     S.session = { cards: seq.map((c) => c.id).concat(after ? [after.id] : []), idx: 0, startedAt: Date.now() };
     save();
+    if (window.Music) Music.onEveningStart(S.session.startedAt); // מוזיקת הפתיחה של הערב
   }
 
   // ---------- משחק ----------
@@ -567,7 +569,8 @@
   function stopCardTimer() { if (cardTimer) { clearInterval(cardTimer); cardTimer = null; } }
 
   // ---------- עצור ----------
-  function openStop() { $('#stop-safeword').textContent = S.safeword; $('#stop-overlay').hidden = false; navigator.vibrate && navigator.vibrate([80, 40, 80]); timerPause(); stopCardTimer(); }
+  function openStop() {
+    if (window.Music) Music.pause(); $('#stop-safeword').textContent = S.safeword; $('#stop-overlay').hidden = false; navigator.vibrate && navigator.vibrate([80, 40, 80]); timerPause(); stopCardTimer(); }
   $('#stop-resume').addEventListener('click', () => { $('#stop-overlay').hidden = true; });
   $('#stop-aftercare').addEventListener('click', () => {
     $('#stop-overlay').hidden = true;
@@ -1456,6 +1459,7 @@ END: ${bt.end}` : ''}`
   const delay = (ms) => new Promise((r) => setTimeout(r, ms));
   async function init() {
     applyLang();
+    if (window.Music) Music.init();
     $('#sprite').innerHTML = illustrationSprite();
     Object.entries(S.customIllus || {}).forEach(([id, body]) => addCustomIllustration(id, body));
     buildPad();

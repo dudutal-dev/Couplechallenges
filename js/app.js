@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.65';
+  const APP_VERSION = '2026.10.18.66';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -427,6 +427,9 @@
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(170, now); lp.frequency.linearRampToValueAtTime(560, now + 45); lp.Q.value = 1.6; lp.connect(master);
       const mk = (type, f, g, det, dest) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det || 0; const gg = ctx.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(dest || lp); o.start(); return o; };
       const oscs = [mk('sawtooth', 55, 0.11, -4), mk('sawtooth', 58.27, 0.09, 5), mk('sine', 27.5, 0.5), mk('triangle', 110, 0.035, 2)];
+      // שכבה עליונה שנכנסת ככל שהערב מתקדם: אוקטבה מעל, אותו חצי טון
+      const hig = ctx.createGain(); hig.gain.value = 0; hig.connect(lp);
+      const his = [mk('sawtooth', 110, 1, -3, hig), mk('sawtooth', 116.54, 0.8, 4, hig)]; his.forEach((o) => { o.disconnect(); }); his[0].connect(hig); his[1].connect(hig);
       // נדנוד איטי של הגובה באחד המסורים: הצליל לא נח
       const wob = ctx.createOscillator(); wob.frequency.value = 0.11; const wg = ctx.createGain(); wg.gain.value = 14; wob.connect(wg); wg.connect(oscs[0].detune); wob.start();
       // ה"זוהר" הגבוה: סינוס דק עם טרמולו מהיר, בקושי נשמע, מוסיף אי-שקט
@@ -435,12 +438,27 @@
       // נשימה של המסנן
       const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07; const lg = ctx.createGain(); lg.gain.value = 120; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
       // דופק: לאב-דאב שמאיץ לאט מ-58 ל-88 פעימות בדקה
-      const hb = { next: now + 0.6, bpm: 58, timer: null };
+      const hb = { next: now + 0.6, bpm: 56, target: 56, timer: null, tick: 0 };
       const thump = (t, g, f) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(36, t + 0.16); const gg = ctx.createGain(); gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(g, t + 0.012); gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.26); o.connect(gg); gg.connect(pkAudio.bus); o.start(t); o.stop(t + 0.3); };
-      const schedule = () => { if (!pkAudio || !pkAudio.nodes || pkAudio.nodes.hb !== hb) return; while (hb.next < ctx.currentTime + 0.7) { thump(hb.next, 0.5, 74); thump(hb.next + 0.21, 0.32, 62); hb.next += 60 / hb.bpm; hb.bpm = Math.min(88, hb.bpm + 0.3); } hb.timer = setTimeout(schedule, 220); };
+      // טיק קצר בין הפעימות, נכנס במחצית השנייה של הערב
+      const tick = (t, g) => { const len = Math.floor(ctx.sampleRate * 0.05), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len); const n = ctx.createBufferSource(); n.buffer = buf; const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 3200; const gg = ctx.createGain(); gg.gain.value = g; n.connect(f); f.connect(gg); gg.connect(pkAudio.bus); n.start(t); };
+      const schedule = () => { if (!pkAudio || !pkAudio.nodes || pkAudio.nodes.hb !== hb) return; while (hb.next < ctx.currentTime + 0.7) { const per = 60 / hb.bpm; thump(hb.next, 0.5, 74); thump(hb.next + Math.min(0.21, per * 0.3), 0.32, 62); if (hb.tick > 0) tick(hb.next + per / 2, hb.tick); hb.next += per; hb.bpm += Math.sign(hb.target - hb.bpm) * Math.min(0.6, Math.abs(hb.target - hb.bpm)); } hb.timer = setTimeout(schedule, 220); };
       master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(0.0001, now); master.gain.exponentialRampToValueAtTime(0.42, now + 3);
-      pkAudio.nodes = { oscs: oscs.concat([wob, sh, trem]), lfo, lp, hb };
+      pkAudio.nodes = { oscs: oscs.concat(his, [wob, sh, trem]), lfo, lp, hb, shg, hig, master };
       schedule();
+    } catch (e) { /* */ }
+  }
+  // עוצמת הדרון לפי התקדמות הערב (0 = פתיחה, 1 = המשימה האחרונה): מסנן נפתח, דופק מאיץ, שכבה עליונה וטיקים נכנסים
+  function droneSet(p) {
+    if (!pkAudio || !pkAudio.nodes) return;
+    try {
+      const n = pkAudio.nodes, { ctx } = pkAudio, t = ctx.currentTime, q = Math.max(0, Math.min(1, p));
+      const ramp = (param, v, d) => { param.cancelScheduledValues(t); param.setValueAtTime(param.value, t); param.linearRampToValueAtTime(v, t + (d || 2.5)); };
+      ramp(n.lp.frequency, 160 + 1000 * Math.pow(q, 1.4), 3);
+      ramp(n.master.gain, 0.36 + 0.22 * q, 2.5);
+      ramp(n.shg.gain, 0.008 + 0.04 * q, 2.5);
+      ramp(n.hig.gain, 0.1 * Math.pow(q, 1.3), 3);
+      n.hb.target = 56 + 42 * q; n.hb.tick = q > 0.45 ? 0.05 + 0.1 * q : 0;
     } catch (e) { /* */ }
   }
   function droneStop() {
@@ -528,9 +546,10 @@
     $('.peek-prog', el).textContent = ''; $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
     $$('.peek-dots i', el).forEach((d) => { d.classList.remove('on', 'done'); });
     stage.innerHTML = '<div class="peek-black"></div>';
-    droneStart(); boom(0.8);
-    showWord(`<b class="tag">${esc(peekTag('open'))}</b>`, 'intro', 3000);
-    peek.timer = setTimeout(() => { if (!peek || peek.phase !== 'intro') return; boom(0.6); showWord(`<small>${isEn() ? 'Tonight' : 'הערב'}</small><b>${esc(roleName('D'))} &amp; ${esc(roleName('S'))}</b>`, 'intro', 2000); peek.timer = setTimeout(() => peekGo(0), 2100); }, 3100);
+    droneStart(); droneSet(0); boom(0.8);
+    const t1 = 2600 + Math.random() * 900, t2 = 1600 + Math.random() * 800;
+    showWord(`<b class="tag">${esc(peekTag('open'))}</b>`, 'intro', t1);
+    peek.timer = setTimeout(() => { if (!peek || peek.phase !== 'intro') return; boom(0.6); showWord(`<small>${isEn() ? 'Tonight' : 'הערב'}</small><b>${esc(roleName('D'))} &amp; ${esc(roleName('S'))}</b>`, 'intro', t2); peek.timer = setTimeout(() => peekGo(0), t2 + 100); }, t1 + 100);
   }
   async function peekGo(i) {
     if (!peek) return; clearTimeout(peek.timer); clearTimeout(peek.cleanTimer);
@@ -548,16 +567,18 @@
     $('.peek-prog', el).textContent = `${i + 1} / ${items.length}`;
     $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
     $$('.peek-dots i', el).forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
-    // מעבר קצר דרך שחור
+    // מעבר דרך שחור, באורך משתנה בכל פעם
     stage.innerHTML = '<div class="peek-black"></div>';
+    const dip = 120 + Math.random() * 520;
     const rec = await Media.getFile(it.key);
+    await new Promise((res) => setTimeout(res, dip));
     if (!peek || peek.i !== i || peek.phase !== 'media') return;
     if (!rec || !rec.blob) { peek.timer = setTimeout(() => peekGo(i + 1), 500); return; }
     const u = URL.createObjectURL(rec.blob); peek.urls.push(u);
     const wide = tvOn || (window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
     if (wide) peek.cleanTimer = setTimeout(() => { if (peek && peek.phase === 'media') el.classList.add('clean'); }, 2500);
     if (!peek.hinted) { peek.hinted = true; const h = $('.peek-hint', el); h.textContent = isEn() ? 'Tap the screen to hide the buttons. Tap again to bring them back.' : 'הקשה על המסך מסתירה את הכפתורים. הקשה נוספת מחזירה אותם.'; h.hidden = false; setTimeout(() => { h.hidden = true; }, 3200); }
-    boom(1); if (i === items.length - 1) setTimeout(() => { if (peek && peek.i === i) riser(1.6); }, rec.kind === 'image' ? 3200 : 800);
+    const prog = items.length > 1 ? i / (items.length - 1) : 1; droneSet(prog); boom(0.8 + 0.5 * prog); if (i === items.length - 1) setTimeout(() => { if (peek && peek.i === i) riser(1.6); }, rec.kind === 'image' ? 3200 : 800);
     if (rec.kind === 'video') {
       stage.innerHTML = `<video class="pk-in" src="${u}" playsinline autoplay preload="auto"></video>`;
       const v = $('video', stage);
@@ -566,11 +587,12 @@
       v.addEventListener('error', () => { if (peek && peek.i === i) peek.timer = setTimeout(() => peekGo(i + 1), 1200); });
       const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
     } else {
-      stage.innerHTML = `<img class="pk-in pk-kb" src="${u}" alt="">`;
-      peek.timer = setTimeout(() => peekGo(i + 1), 5000);
+      stage.innerHTML = `<img class="pk-in ${Math.random() < 0.5 ? 'pk-kb' : 'pk-kb2'}" src="${u}" alt="">`;
+      peek.timer = setTimeout(() => peekGo(i + 1), 3600 + Math.random() * 3200);
     }
     // שם הקטגוריה נכנס מעל הקליפ עצמו, ונעלם אחרי רגע
-    setTimeout(() => { if (peek && peek.i === i && peek.phase === 'media') showWord(`<b>${esc(cat.name || '')}</b>`, 'cat', 2300); }, 350);
+    const wDelay = 200 + Math.random() * 900, wDur = 1700 + Math.random() * 1300;
+    setTimeout(() => { if (peek && peek.i === i && peek.phase === 'media') showWord(`<b>${esc(cat.name || '')}</b>`, 'cat', wDur); }, wDelay);
   }
   function peekToggle() {
     if (!peek || peek.done) return;

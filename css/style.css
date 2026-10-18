@@ -579,3 +579,7 @@ body.peek-on .music-bar{display:none}
   .peek-end .btn{width:auto;flex:1 1 40%;max-width:320px}
   .peek-word b.tag{font-size:clamp(1.5rem,4.6vw,3rem)}
 }
+
+@keyframes pkKb2{from{transform:scale(1.09)}to{transform:scale(1)}}
+.peek-stage .pk-kb2{animation:pkIn .6s ease both,pkKb2 7s linear both}
+.peek-stage .pk-kb{animation-duration:.6s,7s}

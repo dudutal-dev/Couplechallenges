@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.58';
+  const APP_VERSION = '2026.10.18.59';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -412,7 +412,7 @@
     document.body.appendChild(el);
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-pk]');
-      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') peekGo(peek.done ? 0 : peek.i - 1); else if (a === 'toggle') peekToggle(); else if (a === 'start') { closePeek(); startPlay('session'); } return; }
+      if (b) { const a = b.dataset.pk; if (a === 'close') closePeek(); else if (a === 'next') peekGo(peek.i + 1); else if (a === 'prev') { if (peek.done) { peekIntro(); } else peekGo(peek.phase === 'media' ? peek.i : peek.i - 1); } else if (a === 'toggle') peekToggle(); else if (a === 'start') { closePeek(); startPlay('session'); } return; }
       if (e.target.closest('.peek-stage')) peekToggle();
     });
     return el;
@@ -423,7 +423,7 @@
     peek = { items, i: 0, timer: null, urls: [], paused: false, done: false };
     const el = peekEl(); el.hidden = false; document.body.classList.add('peek-on'); requestWake();
     $('.peek-dots', el).innerHTML = items.map(() => '<i></i>').join('');
-    peekGo(0);
+    peekIntro();
   }
   function closePeek() {
     if (!peek) return;
@@ -431,8 +431,29 @@
     const el = $('#peek'); if (el) { const v = $('video', el); if (v) { v.pause(); v.removeAttribute('src'); } $('.peek-stage', el).innerHTML = ''; el.hidden = true; }
     peek.urls.forEach((u) => URL.revokeObjectURL(u)); peek = null; document.body.classList.remove('peek-on');
   }
-  async function peekGo(i) {
+  const peekUnitOne = () => (APP_ID === 'masks' ? (isEn() ? 'Scene' : 'סצנה') : (isEn() ? 'Task' : 'משימה'));
+  function peekIntro() {
+    const el = peekEl(), stage = $('.peek-stage', el), n = S.session ? S.session.cards.length : peek.items.length;
+    peek.phase = 'intro'; peek.i = 0; peek.done = false; peek.paused = false;
+    $('.peek-prog', el).textContent = ''; $('.peek-cap', el).hidden = true; $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
+    stage.innerHTML = `<div class="peek-title intro"><small>${isEn() ? 'Tonight' : 'הערב'}</small><h1>${esc(roleName('D'))} &amp; ${esc(roleName('S'))}</h1><p>${n} ${PEEK_UNIT()} · ${isEn() ? 'from gentle to intense' : 'מהקל אל הכבד'}</p></div>`;
+    peek.timer = setTimeout(() => peekGo(0), 2400);
+  }
+  // כרטיס מעבר בין משימה למשימה, כמו בטיזר: מספר, קטגוריה, עוצמה ורמז קצר
+  function peekTitle(i) {
+    const el = peekEl(), stage = $('.peek-stage', el), it = peek.items[i], c = it.c, cat = catOf(c.cat) || { name: '' }, n = S.session ? S.session.cards.length : peek.items.length;
+    peek.phase = 'title'; peek.i = i; peek.done = false; peek.paused = false;
+    const dots = c.lvl ? '<span class="lvl">' + [1, 2, 3].map((k) => `<i class="${k <= c.lvl ? 'on' : ''}"></i>`).join('') + '</span>' : '';
+    const tease = plainText(c).split(/[.!?؟]/)[0].slice(0, 70);
+    const to = c.to === 'B' ? (isEn() ? 'For both of you' : 'לשניכם') : (isEn() ? 'For ' : 'ל') + roleName(c.to);
+    $('.peek-prog', el).textContent = `${it.i + 1} / ${n}`; $('.peek-cap', el).hidden = true; $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
+    $$('.peek-dots i', el).forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
+    stage.innerHTML = `<div class="peek-title"><small>${peekUnitOne()} ${it.i + 1}</small><h1>${esc(cat.name || '')}</h1><div class="pt-meta">${dots}<span class="chip to">${esc(to)}</span></div><p>${esc(tease)}${tease.length >= 70 ? '…' : ''}</p></div>`;
+    peek.timer = setTimeout(() => peekGo(i, true), 1900);
+  }
+  async function peekGo(i, afterTitle) {
     if (!peek) return; clearTimeout(peek.timer);
+    if (!afterTitle && i >= 0 && i < peek.items.length) return peekTitle(i);
     const el = peekEl(), stage = $('.peek-stage', el), items = peek.items, n = S.session ? S.session.cards.length : items.length;
     if (i >= items.length) {
       peek.i = items.length; peek.done = true;
@@ -440,7 +461,7 @@
       $('.peek-prog', el).textContent = ''; $('.peek-cap', el).hidden = true; $('.peek-bar', el).hidden = true; $$('.peek-dots i', el).forEach((d) => { d.classList.remove('on'); d.classList.add('done'); }); return;
     }
     if (i < 0) i = 0;
-    peek.i = i; peek.done = false; peek.paused = false;
+    peek.i = i; peek.done = false; peek.paused = false; peek.phase = 'media';
     const it = items[i], c = it.c, cat = catOf(c.cat) || { name: '' };
     $('.peek-prog', el).textContent = `${it.i + 1} / ${n}`;
     $('.peek-cap', el).hidden = false; $('.peek-bar', el).hidden = false;
@@ -453,14 +474,14 @@
     if (!rec || !rec.blob) { peek.timer = setTimeout(() => peekGo(i + 1), 600); return; }
     const u = URL.createObjectURL(rec.blob); peek.urls.push(u);
     if (rec.kind === 'video') {
-      stage.innerHTML = `<video src="${u}" playsinline autoplay preload="auto"></video>`;
+      stage.innerHTML = `<video class="pk-in" src="${u}" playsinline autoplay preload="auto"></video>`;
       const v = $('video', stage);
       v.muted = !!S.videoMuted || !!(window.Music && Music.playing); v.volume = 1;
       v.addEventListener('ended', () => { if (peek && peek.i === i) peekGo(i + 1); });
       v.addEventListener('error', () => { if (peek && peek.i === i) peek.timer = setTimeout(() => peekGo(i + 1), 1200); });
       const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
     } else {
-      stage.innerHTML = `<img src="${u}" alt="">`;
+      stage.innerHTML = `<img class="pk-in pk-kb" src="${u}" alt="">`;
       peek.timer = setTimeout(() => peekGo(i + 1), 5000);
     }
   }
@@ -470,7 +491,7 @@
     peek.paused = !peek.paused;
     $('[data-pk=toggle]', el).textContent = peek.paused ? '▶' : '⏸';
     if (v) { if (peek.paused) v.pause(); else v.play().catch(() => {}); }
-    else if (peek.paused) clearTimeout(peek.timer); else peek.timer = setTimeout(() => peekGo(peek.i + 1), 3000);
+    else if (peek.paused) clearTimeout(peek.timer); else peek.timer = setTimeout(() => (peek.phase === 'title' ? peekGo(peek.i, true) : (peek.phase === 'intro' ? peekGo(0) : peekGo(peek.i + 1))), 1200);
   }
   // אחרי בניית ערב: הצעה להציץ בו
   function offerPeek() {

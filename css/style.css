@@ -525,3 +525,19 @@ body.tv-receiver .music-bar{display:none}
 .peek-end .btn{width:100%}
 .peek-end .home-emblem{margin:0 auto}
 body.peek-on .music-bar{display:none}
+
+/* טיזר: כרטיסי מעבר ואנימציות בהצצה לערב */
+@keyframes pkIn{from{opacity:0;transform:scale(1.03)}to{opacity:1;transform:none}}
+@keyframes pkTitle{0%{opacity:0;transform:translateY(14px)}18%{opacity:1;transform:none}82%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-10px)}}
+@keyframes pkKb{from{transform:scale(1)}to{transform:scale(1.08)}}
+@keyframes pkLine{from{width:0}to{width:100%}}
+.peek-stage .pk-in{animation:pkIn .6s ease both}
+.peek-stage .pk-kb{animation:pkIn .6s ease both,pkKb 5.4s linear both}
+.peek-title{position:relative;z-index:3;text-align:center;padding:28px 24px;max-width:460px;display:flex;flex-direction:column;align-items:center;gap:10px;animation:pkTitle 1.9s ease both}
+.peek-title.intro{animation-duration:2.4s}
+.peek-title small{color:var(--gold);letter-spacing:.14em;text-transform:uppercase;font-size:.8rem}
+.peek-title h1{margin:0;font-family:var(--serif);font-size:2rem;line-height:1.15;color:#fff}
+.peek-title p{margin:4px 0 0;color:#e8dede;font-size:1rem;line-height:1.45;max-width:36ch}
+.peek-title .pt-meta{display:flex;align-items:center;gap:10px}
+.peek-title::after{content:"";display:block;height:2px;width:0;background:var(--gold2);margin-top:6px;animation:pkLine 1.9s linear both}
+.peek-title.intro::after{animation-duration:2.4s}

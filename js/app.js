@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.70';
+  const APP_VERSION = '2026.10.18.71';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -730,6 +730,9 @@
     dialog(`<h2>${isEn() ? 'The teaser is ready' : 'הטיזר מוכן'}</h2><p class="muted tiny">${name} · ${Media.fmtBytes ? Media.fmtBytes(blob.size) : Math.round(blob.size / 1e6) + ' MB'}${isEn() ? '. On iPhone choose Save Video in the share sheet.' : '. באייפון בוחרים ״שמור וידאו״ בגיליון השיתוף.'}</p>`, btns);
   }
   $('#btn-peek').addEventListener('click', openPeek);
+  // טלוויזיה ומוזיקה כבר ממסך הבית של הערב
+  $('#btn-home-tv').addEventListener('click', enterTv);
+  $('#btn-home-music').addEventListener('click', () => { if (!(window.Music && Music.toggleEvening())) show('music'); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && peek) closePeek(); });
   function renderHome() {
     const c = ctx();
@@ -746,6 +749,7 @@
     const ses = S.session;
     $('#btn-resume').hidden = !(ses && ses.idx < ses.cards.length);
     const pk = $('#btn-peek'); pk.hidden = !(ses && ses.idx < ses.cards.length && peekItems().length); pk.textContent = isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו';
+    $('#btn-home-tv').textContent = isEn() ? '📺 TV' : '📺 טלוויזיה'; $('#btn-home-music').textContent = musicBtnLabel();
     if (ses) $('#btn-resume').textContent = `המשך ערב (${Math.min(ses.idx + 1, ses.cards.length)}/${ses.cards.length})`;
     const n = pool().length;
     $('#home-allowed').innerHTML = `<div class="chips">${CATEGORIES.filter((k) => catAllowed(k.id)).map((k) => `<span class="chip">${k.name}</span>`).join('') || '<span class="chip off">אין קטגוריות מותרות</span>'}</div>
@@ -1184,7 +1188,7 @@
   // ניגון עם קול. אם הדפדפן חוסם אוטו-פליי עם קול, מנגנים בשקט ומציגים כפתור ״הפעלת קול״ שלחיצה אחת עליו פותחת את הקול
   const musicBtnLabel = () => (window.Music && Music.playing) ? (isEn() ? '⏸ Music' : '⏸ מוזיקה') : (isEn() ? '🎵 Music' : '🎵 מוזיקה');
   // מוזיקת רקע: כשהיא מתחילה, כל סרטוני המשימות שמתנגנים מושתקים; כשהיא נעצרת, הקול חוזר אם לא כובה ידנית
-  document.addEventListener('music:state', (e) => { const on = !!(e.detail && e.detail.playing); const mb = $('#pa-music'); if (mb) mb.textContent = musicBtnLabel(); const tb = $('#tv-stage [data-tv=music]'); if (tb) tb.textContent = musicBtnLabel(); $$('#card-host video, #tv-stage video, #lightbox video, #scr-editor video').forEach((v) => { v.muted = on || !!S.videoMuted; }); $$('.vid-sound').forEach((b) => { b.hidden = on; }); });
+  document.addEventListener('music:state', (e) => { const on = !!(e.detail && e.detail.playing); const mb = $('#pa-music'); if (mb) mb.textContent = musicBtnLabel(); const hb = $('#btn-home-music'); if (hb) hb.textContent = musicBtnLabel(); const tb = $('#tv-stage [data-tv=music]'); if (tb) tb.textContent = musicBtnLabel(); $$('#card-host video, #tv-stage video, #lightbox video, #scr-editor video').forEach((v) => { v.muted = on || !!S.videoMuted; }); $$('.vid-sound').forEach((b) => { b.hidden = on; }); });
   function playWithSound(v, host) {
     if (!v) return;
     const musicOn = !!(window.Music && Music.playing); // מוזיקת רקע מתנגנת: הסרטון מושתק אוטומטית

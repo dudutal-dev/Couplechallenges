@@ -592,3 +592,6 @@ body.peek-on .music-bar{display:none}
 .pk-export-bar{width:100%;height:4px;border-radius:2px;background:#fff2;overflow:hidden}
 .pk-export-bar i{display:block;height:100%;width:0;background:var(--gold2);transition:width .4s linear}
 .peek-end .btn.dl{background:transparent;border-style:dashed}
+
+.home-tools{margin-top:2px}
+.home-tools .btn{flex:1}

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.64';
+  const APP_VERSION = '2026.10.18.65';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -405,6 +405,9 @@
     return out;
   }
   let peek = null;
+  // מוזיקת הערב (YouTube) מתחילה רק כשנכנסים למשימות: ״ישר למשימה״, סיום הטיזר, או סגירתו
+  let eveningMusicKey = null;
+  function eveningMusic() { if (!window.Music || !S.session) return; if (eveningMusicKey === S.session.startedAt) return; eveningMusicKey = S.session.startedAt; Music.onEveningStart(S.session.startedAt); }
   // --- פסקול הטיזר: נוצר ב-Web Audio, בלי קבצים. דרון עמוק, ״בום״ בכל מעבר, ריזר לפני הסיום ---
   let pkAudio = null;
   function peekAudioInit() {
@@ -494,20 +497,21 @@
   function openPeek() {
     const items = peekItems(); if (!items.length) return;
     peekAudioInit();
-    closePeek();
+    closePeek(true);
     peek = { items, i: 0, timer: null, urls: [], paused: false, done: false, phase: 'intro' };
     const el = peekEl(); el.hidden = false; el.classList.remove('clean', 'end'); document.body.classList.add('peek-on'); requestWake();
     $('.peek-dots', el).innerHTML = items.map(() => '<i></i>').join('');
     musicWasPlaying = !!(window.Music && Music.playing); if (musicWasPlaying) Music.pause();
     peekIntro();
   }
-  function closePeek() {
+  function closePeek(silent) {
     if (!peek) return;
     clearTimeout(peek.timer); clearTimeout(peek.cleanTimer); clearTimeout(peek.wordTimer);
     const el = $('#peek'); if (el) { el.classList.remove('clean'); $('.peek-hint', el).hidden = true; $('.peek-word', el).className = 'peek-word'; const v = $('video', el); if (v) { v.pause(); v.removeAttribute('src'); } $('.peek-stage', el).innerHTML = ''; el.hidden = true; }
     peek.urls.forEach((u) => URL.revokeObjectURL(u)); peek = null; document.body.classList.remove('peek-on');
     droneStop();
     if (musicWasPlaying) { musicWasPlaying = false; try { Music.toggle(); } catch (e) { /* */ } }
+    if (!silent) eveningMusic(); // יציאה מהטיזר אל המשימות: עכשיו המוזיקה
   }
   // מילה על גבי הווידאו: שם הקטגוריה נכנס ויוצא מעל הקליפ עצמו
   function showWord(text, cls, ms) {
@@ -579,10 +583,10 @@
   }
   // אחרי בניית ערב: הצעה להציץ בו
   function offerPeek() {
-    const items = peekItems(); if (!items.length) return;
+    const items = peekItems(); if (!items.length) { eveningMusic(); return; }
     const n = S.session.cards.length;
     dialog(`<h2>${isEn() ? 'The evening is ready' : 'הערב מוכן'}</h2><p>${isEn() ? `${n} ${PEEK_UNIT()}, ${items.length} of them with a video or picture. Watch the teaser of the evening ahead?` : `${n} ${PEEK_UNIT()}, ${items.length} מהן עם סרטון או תמונה. לצפות בטיזר של הערב שמצפה לכם?`}</p>`,
-      [{ label: isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו', cls: 'primary', onClick: () => { peekAudioInit(); setTimeout(openPeek, 30); } }, { label: isEn() ? 'Straight to the first one' : (APP_ID === 'masks' ? 'ישר לסצנה הראשונה' : 'ישר למשימה הראשונה') }]);
+      [{ label: isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו', cls: 'primary', onClick: () => { peekAudioInit(); setTimeout(openPeek, 30); } }, { label: isEn() ? 'Straight to the first one' : (APP_ID === 'masks' ? 'ישר לסצנה הראשונה' : 'ישר למשימה הראשונה'), onClick: () => { eveningMusic(); } }]);
   }
   $('#btn-peek').addEventListener('click', openPeek);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && peek) closePeek(); });
@@ -646,7 +650,6 @@
     const after = shuffle(CARDS.filter((c) => c.cat === AFTERCARE_ID))[0];
     S.session = { cards: seq.map((c) => c.id).concat(after ? [after.id] : []), idx: 0, startedAt: Date.now() };
     save();
-    if (window.Music) Music.onEveningStart(S.session.startedAt); // מוזיקת הפתיחה של הערב
   }
 
   // ---------- משחק ----------
@@ -1384,7 +1387,7 @@ EXAMPLE corset:
     if (a === 'dice') { tvView = 'dice'; return renderTv(); }
     if (a === 'card') { if (!S.session && !randomCard) { playMode = 'random'; pickRandom(); } tvView = 'card'; return renderTv(); }
     if (a === 'roll') { if (rolling) return; rolling = true; const sets = diceSets(), pick = (x) => x[Math.floor(Math.random() * x.length)]; let n = 0; const iv = setInterval(() => { diceResult = { action: pick(sets.action), body: pick(sets.body), time: pick(sets.time) }; if (++n >= 8) { clearInterval(iv); rolling = false; if (alternating()) { flipRoles(); save(); } } renderTv(); }, 90); return; }
-    if (a === 'start') { if (S.roleMode === 'random') { S.dom = Math.random() < 0.5 ? 'a' : 'b'; S.eveningAlt = Math.random() < 0.5; } buildSession(); playMode = 'session'; tvView = 'card'; return renderTv(); }
+    if (a === 'start') { if (S.roleMode === 'random') { S.dom = Math.random() < 0.5 ? 'a' : 'b'; S.eveningAlt = Math.random() < 0.5; } buildSession(); playMode = 'session'; tvView = 'card'; eveningMusic(); return renderTv(); }
     if (a === 'random') { playMode = 'random'; pickRandom(); tvView = 'card'; return renderTv(); }
     if (a === 'finish') { S.session = null; save(); return renderTv(); }
     if (a === 'cast') return tvCast();

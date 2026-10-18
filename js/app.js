@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.63';
+  const APP_VERSION = '2026.10.18.64';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -409,7 +409,7 @@
   let pkAudio = null;
   function peekAudioInit() {
     try {
-      if (!pkAudio) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; const ctx = new AC(); const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination); pkAudio = { ctx, master, nodes: null }; }
+      if (!pkAudio) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; const ctx = new AC(); const bus = ctx.createDynamicsCompressor(); bus.threshold.value = -12; bus.knee.value = 8; bus.ratio.value = 10; bus.attack.value = 0.003; bus.release.value = 0.25; bus.connect(ctx.destination); const master = ctx.createGain(); master.gain.value = 0; master.connect(bus); pkAudio = { ctx, master, bus, nodes: null }; }
       if (pkAudio.ctx.state === 'suspended') pkAudio.ctx.resume();
     } catch (e) { /* בלי פסקול */ }
   }
@@ -420,18 +420,30 @@
     if (!teaserAudioOn() || pkAudio.nodes) return;
     try {
       const { ctx, master } = pkAudio, now = ctx.currentTime;
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 240; lp.Q.value = 0.9; lp.connect(master);
-      const mk = (type, f, g, det) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det || 0; const gg = ctx.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(lp); o.start(); return o; };
-      const oscs = [mk('sawtooth', 55, 0.1, -7), mk('sawtooth', 55, 0.1, 8), mk('sine', 27.5, 0.45), mk('triangle', 82.4, 0.04, 4)];
-      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.06; const lg = ctx.createGain(); lg.gain.value = 150; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
-      master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(0.0001, now); master.gain.exponentialRampToValueAtTime(0.45, now + 2.5);
-      pkAudio.nodes = { oscs, lfo, lp };
+      // מצע: שני מסורים במרווח של חצי טון (מתח), סאב, וטריאנגל דק. המסנן נפתח לאט לאורך הטיזר
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(170, now); lp.frequency.linearRampToValueAtTime(560, now + 45); lp.Q.value = 1.6; lp.connect(master);
+      const mk = (type, f, g, det, dest) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det || 0; const gg = ctx.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(dest || lp); o.start(); return o; };
+      const oscs = [mk('sawtooth', 55, 0.11, -4), mk('sawtooth', 58.27, 0.09, 5), mk('sine', 27.5, 0.5), mk('triangle', 110, 0.035, 2)];
+      // נדנוד איטי של הגובה באחד המסורים: הצליל לא נח
+      const wob = ctx.createOscillator(); wob.frequency.value = 0.11; const wg = ctx.createGain(); wg.gain.value = 14; wob.connect(wg); wg.connect(oscs[0].detune); wob.start();
+      // ה"זוהר" הגבוה: סינוס דק עם טרמולו מהיר, בקושי נשמע, מוסיף אי-שקט
+      const sh = ctx.createOscillator(); sh.type = 'sine'; sh.frequency.value = 1174.66; const shg = ctx.createGain(); shg.gain.value = 0.012;
+      const trem = ctx.createOscillator(); trem.frequency.value = 5.3; const tg = ctx.createGain(); tg.gain.value = 0.01; trem.connect(tg); tg.connect(shg.gain); sh.connect(shg); shg.connect(master); sh.start(); trem.start();
+      // נשימה של המסנן
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07; const lg = ctx.createGain(); lg.gain.value = 120; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+      // דופק: לאב-דאב שמאיץ לאט מ-58 ל-88 פעימות בדקה
+      const hb = { next: now + 0.6, bpm: 58, timer: null };
+      const thump = (t, g, f) => { const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(36, t + 0.16); const gg = ctx.createGain(); gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(g, t + 0.012); gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.26); o.connect(gg); gg.connect(pkAudio.bus); o.start(t); o.stop(t + 0.3); };
+      const schedule = () => { if (!pkAudio || !pkAudio.nodes || pkAudio.nodes.hb !== hb) return; while (hb.next < ctx.currentTime + 0.7) { thump(hb.next, 0.5, 74); thump(hb.next + 0.21, 0.32, 62); hb.next += 60 / hb.bpm; hb.bpm = Math.min(88, hb.bpm + 0.3); } hb.timer = setTimeout(schedule, 220); };
+      master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(0.0001, now); master.gain.exponentialRampToValueAtTime(0.42, now + 3);
+      pkAudio.nodes = { oscs: oscs.concat([wob, sh, trem]), lfo, lp, hb };
+      schedule();
     } catch (e) { /* */ }
   }
   function droneStop() {
     if (!pkAudio || !pkAudio.nodes) return;
-    try { const { ctx, master } = pkAudio, now = ctx.currentTime, n = pkAudio.nodes; master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value || 0.0001, now); master.gain.exponentialRampToValueAtTime(0.0001, now + 0.9); setTimeout(() => { try { n.oscs.forEach((o) => o.stop()); n.lfo.stop(); } catch (e) { /* */ } }, 1000); } catch (e) { /* */ }
-    pkAudio.nodes = null;
+    const n = pkAudio.nodes; pkAudio.nodes = null;
+    try { clearTimeout(n.hb.timer); const { ctx, master } = pkAudio, now = ctx.currentTime; master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now); master.gain.exponentialRampToValueAtTime(0.0001, now + 0.9); setTimeout(() => { try { n.oscs.forEach((o) => o.stop()); n.lfo.stop(); } catch (e) { /* */ } }, 1000); } catch (e) { /* */ }
   }
   function boom(strength) {
     if (!teaserAudioOn()) return;
@@ -439,10 +451,10 @@
       const { ctx } = pkAudio, t = ctx.currentTime, s = strength || 1;
       const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(140 * s, t); o.frequency.exponentialRampToValueAtTime(32, t + 0.7);
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.7 * s, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
-      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 1.7);
+      o.connect(g); g.connect(pkAudio.bus); o.start(t); o.stop(t + 1.7);
       const len = Math.floor(ctx.sampleRate * 0.45), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
-      const n = ctx.createBufferSource(); n.buffer = buf; const nf = ctx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 800; const ng = ctx.createGain(); ng.gain.value = 0.3 * s; n.connect(nf); nf.connect(ng); ng.connect(ctx.destination); n.start(t);
+      const n = ctx.createBufferSource(); n.buffer = buf; const nf = ctx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 800; const ng = ctx.createGain(); ng.gain.value = 0.3 * s; n.connect(nf); nf.connect(ng); ng.connect(pkAudio.bus); n.start(t);
     } catch (e) { /* */ }
   }
   function riser(dur) {
@@ -452,7 +464,7 @@
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       const n = ctx.createBufferSource(); n.buffer = buf; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(180, t); f.frequency.exponentialRampToValueAtTime(2600, t + dur);
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + dur); g.gain.setValueAtTime(0.0001, t + dur + 0.02);
-      n.connect(f); f.connect(g); g.connect(ctx.destination); n.start(t); n.stop(t + dur + 0.05);
+      n.connect(f); f.connect(g); g.connect(pkAudio.bus); n.start(t); n.stop(t + dur + 0.05);
     } catch (e) { /* */ }
   }
   function peekAudioPause(p) { if (!pkAudio) return; try { if (p) pkAudio.ctx.suspend(); else pkAudio.ctx.resume(); } catch (e) { /* */ } }

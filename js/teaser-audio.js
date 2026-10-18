@@ -37,11 +37,12 @@
       build() { const s = st; s.padF = filtBus(380, 1); s.pad = padBank('sawtooth', 0.04, s.padF, 3); s.pad.set([52, 55, 59], A.ctx.currentTime, 0.1); s.bassF = filtBus(220, 1.5); s.leadF = filtBus(500, 4.5); s.dly = mkDelay(0.1875, 0.3, 0.22); s.lead = [40, null, 43, 40, 47, null, 40, 52, null, 43, null, 40, 50, null, 47, 43]; s.roots = [28, 28, 31, 26]; s.chords = [[52, 55, 59], [52, 55, 59], [55, 59, 62], [50, 54, 57]]; },
       set(p, t) { const s = st, r = (prm, v) => { prm.cancelScheduledValues(t); prm.setValueAtTime(prm.value, t); prm.linearRampToValueAtTime(v, t + 2.5); }; r(s.padF.frequency, 380 + 1400 * p); r(s.bassF.frequency, 220 + 600 * p); r(s.leadF.frequency, 400 + 2200 * p); },
       step(k, t) {
-        const s = st, p = s.p, beat = k % 4, bar = Math.floor(k / 16) % 4;
+        const s = st, p = s.p, beat = k % 4, bar = Math.floor(k / 16) % 4, R = s.release;
         if (k % 16 === 0) s.pad.set(s.chords[bar], t, 0.4);
-        if (beat === 0) kick(t, 0.55 + 0.3 * p, A.master);
-        if (beat !== 0) tone('sawtooth', nf(s.roots[bar]), t, 0.004, 0.1, 0.28 + 0.1 * p, s.bassF);
-        if (k % 2 === 1) noise(t, 0.035, 'highpass', 7500, 1, 0.045 + 0.07 * p, A.master);
+        if (R) { if (k % 8 === 0) tone('triangle', nf(s.chords[bar][Math.floor(k / 8) % 3] + 12), t, 0.02, 0.9, 0.08, s.dly.inp); return; }
+        if (p > 0.1 && beat === 0) kick(t, 0.5 + 0.35 * p, A.master);
+        if (p > 0.1 && beat !== 0) tone('sawtooth', nf(s.roots[bar]), t, 0.004, 0.1, 0.26 + 0.12 * p, s.bassF);
+        if (p > 0.1 && k % 2 === 1) noise(t, 0.035, 'highpass', 7500, 1, 0.045 + 0.07 * p, A.master);
         if (p > 0.35 && k % 8 === 6) noise(t, 0.16, 'highpass', 6000, 1, 0.05 + 0.06 * p, A.master);
         if (p > 0.5 && k % 8 === 4) noise(t, 0.09, 'bandpass', 1600, 1.2, 0.07 + 0.09 * p, A.master);
         if (p > 0.22) { const m = s.lead[k % 16]; if (m != null) { const oct = p > 0.7 && Math.floor(k / 64) % 2 === 1 ? 12 : 0; tone('sawtooth', nf(m + oct), t, 0.004, 0.16 + 0.1 * p, 0.15 + 0.07 * p, s.leadF, 0); if (k % 4 === 2) tone('triangle', nf(m + oct + 12), t, 0.004, 0.08, 0.05, s.dly.inp); } }
@@ -53,13 +54,18 @@
       build() { const s = st; s.padF = filtBus(600, 0.6); s.breath = A.ctx.createGain(); s.breath.gain.value = 0.8; s.padF.disconnect(); s.padF.connect(s.breath); s.breath.connect(A.master); s.pad = padBank('triangle', 0.08, s.padF, 4); s.chords = [[62, 65, 69, 72], [58, 62, 65, 69], [53, 57, 60, 65], [55, 60, 64, 67]]; s.pad.set(s.chords[0], A.ctx.currentTime, 0.1); s.dly = mkDelay(0.42, 0.4, 0.35); s.arpF = filtBus(1800, 0.7); s.arpF.disconnect(); s.arpF.connect(s.dly.inp); s.sw = A.ctx.createOscillator(); s.sw.frequency.value = 0.07; s.swg = A.ctx.createGain(); s.swg.gain.value = 0.2; s.sw.connect(s.swg); s.swg.connect(s.breath.gain); s.sw.start(); s.arpI = 0; },
       set(p, t) { const s = st, r = (prm, v) => { prm.cancelScheduledValues(t); prm.setValueAtTime(prm.value, t); prm.linearRampToValueAtTime(v, t + 3); }; r(s.padF.frequency, 600 + 1600 * p); r(s.dly.fbg.gain, 0.4 + 0.22 * p); r(s.arpF.frequency, 1800 + 2000 * p); },
       step(k, t) {
-        const s = st, p = s.p, ci = Math.floor(k / 32) % 4, ch = s.chords[ci];
+        const s = st, p = s.p, ci = Math.floor(k / 32) % 4, ch = s.chords[ci], R = s.release;
         if (k % 32 === 0) { s.pad.set(ch, t, 1.2); tone('sine', nf(ch[0] - 24), t, 0.08, 2.4, 0.32, A.master); tone('sine', nf(ch[0] - 12), t, 0.1, 2.0, 0.1, A.master); }
         if (k % 32 === 16) tone('sine', nf(ch[0] - 24), t, 0.08, 1.8, 0.2, A.master);
-        const every = p > 0.55 ? 2 : 4;
-        if (k % every === 0) { const seq = ch.concat(ch.map((m) => m + 12)); const m = seq[s.arpI % seq.length]; s.arpI++; tone('sine', nf(m), t, 0.015, 0.5 + 0.4 * p, 0.13 + 0.05 * p, s.arpF); if (p > 0.5 && s.arpI % 3 === 0) tone('sine', nf(m + 24), t, 0.01, 0.3, 0.02 + 0.02 * p, s.arpF); }
-        if (p > 0.45 && k % 8 === 0) kick(t, 0.1 + 0.22 * (p - 0.45), A.master, 80);
-        if (p > 0.7 && k % 4 === 2) noise(t, 0.05, 'highpass', 9000, 1, 0.02 + 0.025 * p, A.master);
+        const every = R ? 8 : (p > 0.55 ? 2 : 4);
+        if (k % every === 0) { const seq = ch.concat(ch.map((m) => m + 12)); const m = seq[s.arpI % seq.length]; s.arpI++; tone('sine', nf(m), t, 0.015, (R ? 0.9 : 0.5) + 0.4 * p, 0.13 + 0.05 * p, s.arpF); if (!R && p > 0.5 && s.arpI % 3 === 0) tone('sine', nf(m + 24), t, 0.01, 0.3, 0.02 + 0.02 * p, s.arpF); }
+        if (R) return;
+        // הקצב: פולס עץ רך על האוף-ביט, שייקר, ואז קיק עמוק ושקט
+        if (p > 0.18 && k % 4 === 2) tone('sine', nf(ch[0] + 12), t, 0.003, 0.07, 0.05 + 0.07 * p, A.master);
+        if (p > 0.3 && k % 4 === 1) noise(t, 0.03, 'highpass', 5200, 1, 0.012 + 0.03 * p, A.master);
+        if (p > 0.32 && k % 8 === 0) kick(t, 0.12 + 0.28 * (p - 0.32), A.master, 80);
+        if (p > 0.6 && k % 16 === 10) kick(t, 0.08 + 0.12 * (p - 0.6), A.master, 70);
+        if (p > 0.65 && k % 4 === 2) noise(t, 0.05, 'highpass', 9000, 1, 0.02 + 0.025 * p, A.master);
       },
     },
     masks: {
@@ -67,8 +73,9 @@
       build() { const s = st; s.padF = filtBus(340, 0.9); s.chords = [[57, 60, 64], [53, 57, 60], [57, 60, 64], [52, 56, 59]]; s.pad = padBank('sawtooth', 0.03, s.padF, 3); s.pad.set(s.chords[0], A.ctx.currentTime, 0.1); s.bassF = filtBus(520, 1.2); s.dly = mkDelay(0.5, 0.32, 0.3); s.walk = [45, 48, 52, 50, 45, 43, 40, 43, 41, 45, 48, 47, 44, 47, 52, 50]; s.mel = [69, null, null, 72, null, 76, null, null, 74, null, null, 69, null, null, null, null, 68, null, 71, null, 76, null, null, 74, null, null, 72, null, null, null, null, null]; },
       set(p, t) { const s = st, r = (prm, v) => { prm.cancelScheduledValues(t); prm.setValueAtTime(prm.value, t); prm.linearRampToValueAtTime(v, t + 2.5); }; r(s.padF.frequency, 340 + 900 * p); r(s.bassF.frequency, 520 + 500 * p); },
       step(k, t) {
-        const s = st, p = s.p, ci = Math.floor(k / 32) % 4;
+        const s = st, p = s.p, ci = Math.floor(k / 32) % 4, R = s.release;
         if (k % 32 === 0) s.pad.set(s.chords[ci], t, 0.5);
+        if (R) { if (k % 8 === 0) tone('triangle', nf(s.walk[Math.floor(k / 8) % 16]), t, 0.01, 0.9, 0.22, s.bassF); if (k % 16 === 8) tone('sine', nf(s.mel[(k / 2) % 32] || 69), t, 0.01, 1.4, 0.1, s.dly.inp); return; }
         if (k % 4 === 0) tone('triangle', nf(s.walk[Math.floor(k / 4) % 16]), t, 0.005, 0.42, 0.4, s.bassF);
         if (k % 8 === 4) noise(t, 0.11, 'bandpass', 1900, 0.9, 0.07 + 0.09 * p, A.master);
         if (k % 2 === 0) noise(t, 0.03, 'highpass', 6500, 1, 0.02 + 0.03 * p, A.master);
@@ -94,7 +101,8 @@
     try { while (st.next < ctx.currentTime + 0.4) { const spb = 60 / st.bpm / 4, sw = st.step % 2 ? spb * st.style.swing : 0; st.style.step(st.step, st.next + sw); st.next += spb; st.step++; st.steps++; } } catch (e) { /* */ }
     st.timer = setTimeout(schedule, 90);
   }
-  function set(p) { if (!A || !st) return; try { st.p = Math.max(0, Math.min(1, p)); st.bpm = st.style.bpm(st.p); st.style.set(st.p, A.ctx.currentTime); const t = A.ctx.currentTime; A.master.gain.cancelScheduledValues(t); A.master.gain.setValueAtTime(Math.max(A.master.gain.value, 0.0001), t); A.master.gain.linearRampToValueAtTime(0.45 + 0.2 * st.p, t + 2.5); } catch (e) { /* */ } }
+  // p שלילי = הרגעה (הכרטיס הסוגר של הערב): בלי תופים, קצב בסיס, פאד והד בלבד
+  function set(p) { if (!A || !st) return; try { st.release = p < 0; st.p = st.release ? 0.1 : Math.max(0, Math.min(1, p)); st.bpm = st.style.bpm(st.release ? 0 : st.p); st.style.set(st.p, A.ctx.currentTime); const t = A.ctx.currentTime; A.master.gain.cancelScheduledValues(t); A.master.gain.setValueAtTime(Math.max(A.master.gain.value, 0.0001), t); A.master.gain.linearRampToValueAtTime(st.release ? 0.38 : 0.45 + 0.2 * st.p, t + 3); } catch (e) { /* */ } }
   function stop() {
     if (!A || !st) return;
     const s = st; st = null; clearTimeout(s.timer);

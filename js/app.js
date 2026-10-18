@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.74';
+  const APP_VERSION = '2026.10.18.75';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -411,6 +411,10 @@
     return out;
   }
   let peek = null;
+  // עוצמה לפי מקום בערב: הכרטיס הסוגר (אחרי/סגירה/יציאה מהדמות) מקבל ערך שלילי = הרגעה
+  function peekIntensity(items, i) { const it = items[i]; if (it.c.cat === AFTERCARE_ID) return -1; const body = items.filter((x) => x.c.cat !== AFTERCARE_ID), idx = body.indexOf(it); return body.length > 1 ? 0.12 + 0.88 * idx / (body.length - 1) : 0.6; }
+  const peekIsPeak = (items, i) => { const body = items.filter((x) => x.c.cat !== AFTERCARE_ID); return body.length && body[body.length - 1] === items[i]; };
+  const peekCatName = (c) => { const cat = catOf(c.cat); return (cat && cat.name) || (c.cat === AFTERCARE_ID ? t('אחרי') : ''); };
   // מוזיקת הערב (YouTube) מתחילה רק כשנכנסים למשימות: ״ישר למשימה״, סיום הטיזר, או סגירתו
   let eveningMusicKey = null;
   function eveningMusic() { /* אין הפעלה אוטומטית של מוזיקה: רק מכפתור 🎵 */ }
@@ -494,13 +498,13 @@
     if (i >= items.length) {
       peek.i = items.length; peek.done = true; peek.phase = 'end';
       el.classList.remove('clean'); el.classList.add('end'); $('.peek-word', el).className = 'peek-word';
-      droneStop(); boom(1.1);
+      droneStop(); boom(0.6);
       stage.innerHTML = `<div class="peek-end"><div class="home-emblem">${illus('heart')}</div><h1>${isEn() ? 'Tonight.' : 'הערב.'}</h1><p class="lead">${esc(peekTag('end'))}</p><button type="button" class="btn primary big" data-pk="start">${isEn() ? 'Begin' : 'מתחילים'}</button><button type="button" class="btn ghost" data-pk="prev">${isEn() ? 'Watch again' : 'לצפות שוב'}</button><button type="button" class="btn ghost dl" data-pk="export">⬇ ${isEn() ? 'Download the teaser' : 'הורדת הטיזר למכשיר'}</button></div>`;
       $('.peek-prog', el).textContent = ''; $('.peek-bar', el).hidden = true; $$('.peek-dots i', el).forEach((d) => { d.classList.remove('on'); d.classList.add('done'); }); return;
     }
     if (i < 0) i = 0;
     peek.i = i; peek.done = false; peek.paused = false; peek.phase = 'media'; el.classList.remove('end');
-    const it = items[i], c = it.c, cat = catOf(c.cat) || { name: '' }, sameCat = i > 0 && items[i - 1].c.cat === c.cat;
+    const it = items[i], c = it.c, cat = { name: peekCatName(c) }, sameCat = i > 0 && items[i - 1].c.cat === c.cat;
     $('.peek-prog', el).textContent = `${i + 1} / ${items.length}`;
     $('.peek-bar', el).hidden = false; $('[data-pk=toggle]', el).textContent = '⏸';
     $$('.peek-dots i', el).forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('done', k < i); });
@@ -516,7 +520,7 @@
     const wide = tvOn || (window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
     if (wide) peek.cleanTimer = setTimeout(() => { if (peek && peek.phase === 'media') el.classList.add('clean'); }, 2500);
     if (!peek.hinted) { peek.hinted = true; const h = $('.peek-hint', el); h.textContent = isEn() ? 'Tap the screen to hide the buttons. Tap again to bring them back.' : 'הקשה על המסך מסתירה את הכפתורים. הקשה נוספת מחזירה אותם.'; h.hidden = false; setTimeout(() => { h.hidden = true; }, 3200); }
-    const prog = items.length > 1 ? i / (items.length - 1) : 1; droneSet(prog); boom(sameCat ? 0.45 : 0.8 + 0.5 * prog); if (i === items.length - 1) setTimeout(() => { if (peek && peek.i === i) riser(1.6); }, rec.kind === 'image' ? 3200 : 800);
+    const prog = peekIntensity(items, i); droneSet(prog); boom(prog < 0 ? 0.35 : (sameCat ? 0.45 : 0.8 + 0.5 * prog)); if (peekIsPeak(items, i)) setTimeout(() => { if (peek && peek.i === i) riser(1.6); }, rec.kind === 'image' ? 3200 : 800);
     if (rec.kind === 'video') {
       stage.innerHTML = `<video class="pk-in" src="${u}" playsinline autoplay preload="auto"></video>`;
       const v = $('video', stage);
@@ -615,11 +619,11 @@
       boom(0.6); await wordOver(black, `${roleName('D')} & ${roleName('S')}`, isEn() ? 'Tonight' : 'הערב', 1600 + Math.random() * 800, false);
       // קליפים
       for (let i = 0; i < items.length && !pkExport.cancelled; i++) {
-        const it = items[i], cat = catOf(it.c.cat) || { name: '' }, prog = items.length > 1 ? i / (items.length - 1) : 1, sameCat = i > 0 && items[i - 1].c.cat === it.c.cat;
+        const it = items[i], cat = { name: peekCatName(it.c) }, prog = peekIntensity(items, i), sameCat = i > 0 && items[i - 1].c.cat === it.c.cat;
         await hold(black, sameCat ? 50 + Math.random() * 120 : 120 + Math.random() * 520);
         const rec2 = await Media.getFile(it.key); if (!rec2 || !rec2.blob) continue;
         const u = URL.createObjectURL(rec2.blob);
-        droneSet(prog); boom(sameCat ? 0.45 : 0.8 + 0.5 * prog); if (i === items.length - 1) setTimeout(() => riser(1.6), rec2.kind === 'image' ? 3000 : 800);
+        droneSet(prog); boom(prog < 0 ? 0.35 : (sameCat ? 0.45 : 0.8 + 0.5 * prog)); if (peekIsPeak(items, i)) setTimeout(() => riser(1.6), rec2.kind === 'image' ? 3000 : 800);
         const wDelay = 200 + Math.random() * 900, wDur = sameCat ? 0 : 1700 + Math.random() * 1300;
         if (rec2.kind === 'video') {
           const v = document.createElement('video'); v.src = u; v.muted = true; v.playsInline = true; v.preload = 'auto';

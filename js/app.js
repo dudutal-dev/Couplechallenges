@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.19.76';
+  const APP_VERSION = '2026.10.19.77';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -696,7 +696,8 @@
     seg($('#home-mode-seg'), S.roleMode || 'fixed', (v) => { S.roleMode = v; save(); renderHome(); });
     const ses = S.session;
     $('#btn-resume').hidden = !(ses && ses.idx < ses.cards.length);
-    const pk = $('#btn-peek'); pk.hidden = !(ses && ses.idx < ses.cards.length && peekItems().length); pk.textContent = isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו';
+    const pk = $('#btn-peek'); pk.hidden = !(ses && ses.idx < ses.cards.length && peekItems().length);
+    const ev = $('#btn-evideo'); ev.hidden = !(ses && ses.idx < ses.cards.length && window.EveningVideo && EveningVideo.supported()); ev.textContent = isEn() ? '🎬 Evening video (English)' : '🎬 ייצוא הערב לווידאו (אנגלית)'; pk.textContent = isEn() ? '👁 Peek at the evening ahead' : '👁 הצצה לערב שמצפה לנו';
     $('#btn-home-tv').textContent = isEn() ? '📺 TV' : '📺 טלוויזיה'; $('#btn-home-music').textContent = musicBtnLabel();
     if (ses) $('#btn-resume').textContent = `המשך ערב (${Math.min(ses.idx + 1, ses.cards.length)}/${ses.cards.length})`;
     const n = pool().length;
@@ -1779,6 +1780,31 @@ END: ${bt.end}` : ''}`
     $('#prompt-video').oninput = (e) => { S.promptVideo = e.target.value; save(); };
     $('#prompt-reset').onclick = () => { S.promptStyle = ''; S.promptVideo = ''; S.promptAct = ''; S.promptKeep = ''; S.promptImg = ''; save(); renderCopyList(); };
   }
+
+
+  // ---------- ייצוא הערב לווידאו (באנגלית): הנתונים לסרטון ״שחקו לפי״ ----------
+  function eveningVideoData() {
+    const s = S.session; if (!s || !s.cards.length) return null;
+    const nm = (k) => pname(k) || (k === 'a' ? 'A' : 'B'), roles = I18.roles || {};
+    const css = getComputedStyle(document.documentElement), cv = (v, d) => (css.getPropertyValue(v) || d).trim() || d;
+    const enCat = (c) => { if (c.cat === AFTERCARE_ID) return I18.dict['אחרי'] || 'אחרי'; const cat = catOf(c.cat); return cat ? (I18.dict[cat.name] || cat.name) : ''; };
+    const segs = [], cards = s.cards.map((id) => cardById(id)).filter(Boolean), total = cards.length;
+    cards.forEach((c, i) => {
+      const flip = alternating() && ((i - s.idx) % 2 !== 0), dom = flip ? sub() : S.dom, other = dom === 'a' ? 'b' : 'a';
+      const cx = { D: nm(dom), S: nm(other), dg: S.partners[dom].g, sg: S.partners[other].g };
+      const src = (typeof CARDS_EN !== 'undefined' && CARDS_EN[c.id]) || (S.cardsEn && S.cardsEn[c.id]) || ((S.en || {})[c.id + ':' + cx.dg] || {}).t || c.text;
+      const closing = c.cat === AFTERCARE_ID, next = cards[i + 1];
+      segs.push({ n: i + 1, total, cat: enCat(c), act: typeof actLabel === 'function' && !closing ? (I18.dict[actLabel(c).split(' · ')[1]] || '') : '', closing,
+        to: c.to === 'B' ? 'For both' : 'For ' + cx[c.to === 'D' ? 'D' : 'S'], lead: `${cx.D} ${roles.lead || 'leads'} · ${cx.S} ${roles.follow || 'follows'}`,
+        text: toPlain(render(src, cx)), safe: c.safe && S.showSafety ? (I18.dict[c.safe] || '') : '', min: c.min || 0,
+        mediaKey: (() => { const m = S.media[c.id] || {}; const sl = activeVidSlot(m) || activeImgSlot(m); return sl ? mediaKey(c.id, sl) : null; })(), kind: activeVidSlot(S.media[c.id] || {}) ? 'video' : 'image',
+        next: next ? enCat(next) : '' });
+    });
+    return { appId: APP_ID, appName: 'Velvet', tagline: 'Control. Trust. Fire.', style: APP_ID, names: [nm(S.dom), nm(sub())], stopWord: S.safeword, segments: segs,
+      theme: { accent: cv('--gold2', '#ffd58a'), glow: cv('--gold', '#e0a84a'), bg: cv('--bg', '#090507'), bg2: cv('--panel3', '#2a0810') } };
+  }
+  const evApi = () => ({ en: isEn(), dialog, requestWake, pauseMusic: () => { if (window.Music && Music.playing) Music.pause(); } });
+  $('#btn-evideo').addEventListener('click', () => { if (!window.EveningVideo) return; if (SAFE_MODE) { dialog('<h2>Safe mode</h2><p>Media is hidden in safe mode.</p>', [{ label: 'OK' }]); return; } const d = eveningVideoData(); if (d) EveningVideo.start(d, evApi()); });
 
   // ---------- אתחול ----------
   const SAFE_MODE = (() => { try { return sessionStorage.getItem('safe') === '1' || location.search.includes('safe=1'); } catch { return false; } })();

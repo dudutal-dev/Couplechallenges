@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.19.77';
+  const APP_VERSION = '2026.10.19.78';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,7 +19,7 @@
     tts: { mode: 'off', key: '', voiceId: '', model: 'eleven_v3' },
     ai: { key: '', model: 'claude-opus-5-5', effort: 'medium' },
     showSafety: false, eveningAlt: false, vidPref: 'personal',
-    promptStyle: '', promptVideo: '', promptAct: '', promptKeep: '', promptImg: '', en: {},
+    promptStyle: '', promptVideo: '', promptAct: '', promptKeep: '', promptImg: '', poseGloss: '', en: {},
     customIllus: {},
   });
   let S = load();
@@ -1613,10 +1613,31 @@ EXAMPLE corset:
     [/\s{2,}/g, ' '], [/\s+([,.;:])/g, '$1'], [/\(\s*\)/g, ''], [/,\s*\./g, '.'],
   ];
   const actOnly = (t) => ACT_ONLY.reduce((s, [re, r]) => s.replace(re, r), t || '').replace(/\.\s*\./g, '.').trim();
+  // ---------- מילון תנוחות: מונח → תיאור באנגלית. מספרים (69) נכתבים במילים, כי מחוללי וידאו קוראים ספרה כמספר ולא כתנוחה ----------
+  const DEFAULT_POSE_GLOSS = '69 = \nreverse 69 = \n';
+  const POSE_WORDS = [[/\breverse 69\b/gi, 'the reverse sixty-nine position'], [/\b69\b/g, 'the sixty-nine position'], [/\bsixty-nine\b/gi, 'sixty-nine']];
+  const poseSpell = (t) => POSE_WORDS.reduce((x, [re, r]) => x.replace(re, r), t || '').replace(/\b(?:a|in a|in) (the (?:reverse )?sixty-nine position)/gi, 'in $1');
+  function poseGloss() {
+    const out = []; (S.poseGloss || DEFAULT_POSE_GLOSS).split('\n').forEach((ln) => { const m = ln.match(/^\s*([^=]+?)\s*=\s*(.*)$/); if (m) out.push({ term: m[1].trim(), desc: m[2].trim() }); });
+    return out.sort((a, b) => b.term.length - a.term.length);
+  }
+  // שורות POSITION לפרומפט: לכל מונח מהמילון שמופיע בטקסט. למונח בלי תיאור: הגדרה כללית, כדי שלפחות הכיוון יישמר.
+  function poseLines(...texts) {
+    const hay = texts.filter(Boolean).join(' '), seen = new Set(), out = [];
+    for (const { term, desc } of poseGloss()) {
+      const key = term.toLowerCase(); if (seen.has(key)) continue;
+      const re = new RegExp('(^|[^\\w-])' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w-])', 'i');
+      if (!re.test(hay)) continue; seen.add(key);
+      const name = poseSpell(term).replace(/^the /, '');
+      out.push(desc ? `POSITION (${name}): ${desc}` : `POSITION (${name}): a named position, not a number. Keep its orientation exactly for the whole clip: the two lie head-to-toe, each one inverted relative to the other.`);
+    }
+    return out;
+  }
   function buildPrompt(c, v, kind) {
     const e = entryText(c, v);
     const man = v.key === 'm', giver = man ? 'the man' : 'the woman', recv = man ? 'the woman' : 'the man';
-    const shot = actOnly(shotFor(c, v)) || null, en = actOnly(enFor(c, v)) || null, cap = (t) => t[0].toUpperCase() + t.slice(1);
+    const rawShot = shotFor(c, v), rawEn = enFor(c, v), poses = poseLines(rawShot, rawEn, entryText(c, v).text);
+    const shot = poseSpell(actOnly(rawShot)) || null, en = poseSpell(actOnly(rawEn)) || null, cap = (t) => t[0].toUpperCase() + t.slice(1);
     const style = (S.promptStyle || DEFAULT_PROMPT_STYLE).trim();
     const video = (S.promptVideo || DEFAULT_PROMPT_VIDEO).trim();
     const act = (S.promptAct || DEFAULT_PROMPT_ACT).trim();
@@ -1649,6 +1670,7 @@ END: ${bt.end}` : ''}`
       `KEEP FROM THE IMAGE: ${keep}`,
       'SETTING: only what the attached image shows. No bed, sofa, room, candles or any object that is not in the image; "the furniture in the image" below means whatever the image actually has.',
       action,
+      ...poses,
       `PEOPLE: ${perf}`,
       `VIDEO: ${video} ${style} ${act}`,
     ] : null;
@@ -1658,6 +1680,7 @@ END: ${bt.end}` : ''}`
       const imgStyle = (S.promptImg || DEFAULT_PROMPT_IMG).trim();
       return [
         frame,
+        ...poses,
         `Setting: only what the reference image shows; add no furniture, room or objects that are not in it.`,
         `Pose locked exactly as described above: who stands, kneels or lies and in which direction, where each hand, mouth and body part is. Do not change, simplify or mirror the pose.`,
         `Exactly two people, the man and the woman from the reference image: same faces, hair, bodies, same room and props. Both fully nude unless the scene above says otherwise. The man's penis and testicles are clearly visible, the woman's breasts and vulva are visible. Each has two arms, two legs and five fingers per hand, nothing missing, nothing added. No one and nothing else in the frame.`,
@@ -1772,13 +1795,15 @@ END: ${bt.end}` : ''}`
     $('#prompt-video').value = S.promptVideo || DEFAULT_PROMPT_VIDEO;
     $('#prompt-act').value = S.promptAct || DEFAULT_PROMPT_ACT;
     $('#prompt-keep').value = S.promptKeep || DEFAULT_PROMPT_KEEP;
+    $('#prompt-poses').value = S.poseGloss || DEFAULT_POSE_GLOSS;
     $('#prompt-img').value = S.promptImg || DEFAULT_PROMPT_IMG;
     $('#prompt-img').oninput = (e) => { S.promptImg = e.target.value; save(); };
     $('#prompt-keep').oninput = (e) => { S.promptKeep = e.target.value; save(); };
+    $('#prompt-poses').oninput = (e) => { S.poseGloss = e.target.value; save(); };
     $('#prompt-act').oninput = (e) => { S.promptAct = e.target.value; save(); };
     $('#prompt-style').oninput = (e) => { S.promptStyle = e.target.value; save(); };
     $('#prompt-video').oninput = (e) => { S.promptVideo = e.target.value; save(); };
-    $('#prompt-reset').onclick = () => { S.promptStyle = ''; S.promptVideo = ''; S.promptAct = ''; S.promptKeep = ''; S.promptImg = ''; save(); renderCopyList(); };
+    $('#prompt-reset').onclick = () => { S.promptStyle = ''; S.promptVideo = ''; S.promptAct = ''; S.promptKeep = ''; S.promptImg = ''; S.poseGloss = ''; save(); renderCopyList(); };
   }
 
 

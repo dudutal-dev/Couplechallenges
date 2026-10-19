@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const KEY = 'ktifa.v1';
-  const APP_VERSION = '2026.10.18.75';
+  const APP_VERSION = '2026.10.19.76';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -408,8 +408,15 @@
     const s = S.session; if (!s || SAFE_MODE) return [];
     const out = [];
     s.cards.forEach((id, i) => { const c = cardById(id); if (!c) return; const m = S.media[c.id] || {}; const v = activeVidSlot(m), im = v ? null : activeImgSlot(m); const slot = v || im; if (!slot) return; out.push({ c, i, key: mediaKey(c.id, slot), kind: v ? 'video' : 'image' }); });
-    return out;
+    // קטגוריה שחוזרת בערב מופיעה בטיזר פעם אחת: כל הקליפים שלה ברצף, בחיתוך מהיר. סדר הקבוצות לפי ההופעה הראשונה (מהקל אל הכבד), הסגירה אחרונה.
+    const groups = [], byCat = new Map();
+    out.forEach((it) => { if (it.c.cat === AFTERCARE_ID) return; let g = byCat.get(it.c.cat); if (!g) { g = []; byCat.set(it.c.cat, g); groups.push(g); } g.push(it); });
+    const seq = [].concat(...groups).concat(out.filter((it) => it.c.cat === AFTERCARE_ID));
+    seq.forEach((it, k) => { const g = byCat.get(it.c.cat); it.grp = g ? g.length : 1; it.gi = g ? g.indexOf(it) : 0; });
+    return seq;
   }
+  // קליפ בתוך קבוצה של כמה קליפים מאותה קטגוריה נחתך מהר, כדי שהקבוצה תיקרא כמונטאז׳ אחד
+  const peekClipCap = (it) => (it.grp > 1 ? 2400 + Math.random() * 1500 : 0);
   let peek = null;
   // עוצמה לפי מקום בערב: הכרטיס הסוגר (אחרי/סגירה/יציאה מהדמות) מקבל ערך שלילי = הרגעה
   function peekIntensity(items, i) { const it = items[i]; if (it.c.cat === AFTERCARE_ID) return -1; const body = items.filter((x) => x.c.cat !== AFTERCARE_ID), idx = body.indexOf(it); return body.length > 1 ? 0.12 + 0.88 * idx / (body.length - 1) : 0.6; }
@@ -527,6 +534,7 @@
       v.muted = true; // בטיזר נשמע רק הפסקול
       v.addEventListener('ended', () => { if (peek && peek.i === i) peekGo(i + 1); });
       v.addEventListener('error', () => { if (peek && peek.i === i) peek.timer = setTimeout(() => peekGo(i + 1), 1200); });
+      const cap = peekClipCap(it); if (cap) peek.timer = setTimeout(() => { if (peek && peek.i === i && peek.phase === 'media') peekGo(i + 1); }, cap);
       const p = v.play(); if (p && p.catch) p.catch(() => { v.muted = true; v.play().catch(() => {}); });
     } else {
       stage.innerHTML = `<img class="pk-in ${Math.random() < 0.5 ? 'pk-kb' : 'pk-kb2'}" src="${u}" alt="">`;
@@ -629,9 +637,9 @@
           const v = document.createElement('video'); v.src = u; v.muted = true; v.playsInline = true; v.preload = 'auto';
           await new Promise((res) => { v.onloadeddata = res; v.onerror = res; setTimeout(res, 4000); });
           const p = v.play(); if (p && p.catch) p.catch(() => {});
-          const s = performance.now(); let ended = false; v.onended = () => { ended = true; };
+          const s = performance.now(); let ended = false; v.onended = () => { ended = true; }; const cap = peekClipCap(it) || 60000;
           await fadeIn(() => drawMedia(v, 0), 500);
-          while (!ended && !pkExport.cancelled && performance.now() - s < 60000) { const t = performance.now() - s; drawMedia(v, 0); if (t > wDelay && t < wDelay + wDur) word(cat.name || '', '', (t - wDelay) / wDur, false); await frame(); if (v.error) break; }
+          while (!ended && !pkExport.cancelled && performance.now() - s < cap) { const t = performance.now() - s; drawMedia(v, 0); if (t > wDelay && t < wDelay + wDur) word(cat.name || '', '', (t - wDelay) / wDur, false); await frame(); if (v.error) break; }
           v.pause(); v.removeAttribute('src');
         } else {
           const im = new Image(); im.src = u; await new Promise((res) => { im.onload = res; im.onerror = res; });
